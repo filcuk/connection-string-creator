@@ -4,14 +4,29 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Database Connection String Generator</title>
-    <link rel="icon" href="app/res/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="app/res/icon.svg" type="image/svg+xml" data-brand-icon />
+    <script>
+      window.__MICROAPP__ = {
+        themeStorageKey: "microapp-theme",
+        appIcon: "app/res/icon.svg",
+        appIconLight: "",
+        appIconDark: "",
+      };
+    </script>
     <script src="app/theme-init.js"></script>
     <link rel="stylesheet" href="app/styles.css" />
   </head>
   <body>
     <header>
       <div class="site-brand">
-        <img class="site-logo" src="app/res/icon.svg" alt="" width="40" height="40" />
+        <img
+          class="site-logo"
+          src="app/res/icon.svg"
+          alt=""
+          width="40"
+          height="40"
+          data-brand-icon
+        />
         <h1>Database Connection String Generator</h1>
       </div>
       <p class="tagline">Build connection strings for common databases.</p>
@@ -28,7 +43,7 @@
       </div>
 
       <section class="content-section" aria-labelledby="config-heading">
-        <h2 id="config-heading" class="section-heading">Configuration</h2>
+        <h2 id="config-heading" class="section-title">Configuration</h2>
         <div class="conn-toolbar">
           <div class="dropdown" id="db-dropdown">
             <button
@@ -49,7 +64,7 @@
       </section>
 
       <section class="content-section" aria-labelledby="details-heading">
-        <h2 id="details-heading" class="section-heading">Connection details</h2>
+        <h2 id="details-heading" class="section-title">Connection details</h2>
         <form id="conn-form" class="conn-form" autocomplete="off" novalidate>
         <div class="conn-form-grid">
           <label class="field" for="conn-host">
@@ -236,7 +251,7 @@
       </section>
 
       <section class="content-section" aria-labelledby="output-heading">
-        <h2 id="output-heading" class="section-heading">Connection string</h2>
+        <h2 id="output-heading" class="section-title">Connection string</h2>
         <div class="conn-output-wrap">
           <textarea
             id="conn-output"

@@ -1,8 +1,8 @@
-import { initShell } from "./shell.js";
-import { initDropdown } from "./dropdown.js";
-import { initExpand } from "./expand.js";
-import { initIcons, mountIcon } from "./icons.js";
-import { setHidden } from "./dom.js";
+import { initShell } from "./shell/shell.js";
+import { initDropdown } from "./components/dropdown.js";
+import { initExpand } from "./components/expand.js";
+import { initIcons, mountIcon } from "./utils/icons.js";
+import { setHidden } from "./utils/dom.js";
 import {
   buildConnectionString,
   DATABASES,
