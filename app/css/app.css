@@ -1,5 +1,13 @@
 /* Connection string generator (fork-owned; sync will not overwrite) */
 
+:root {
+  --accent: #0474b3;
+}
+
+:root[data-theme="dark"] {
+  --accent: #38bdf8;
+}
+
 .conn-toolbar {
   display: flex;
   flex-wrap: wrap;
