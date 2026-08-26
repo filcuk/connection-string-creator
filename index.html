@@ -59,7 +59,11 @@
             </button>
             <ul id="db-dropdown-menu" class="dropdown-menu hidden" role="menu"></ul>
           </div>
-          <div id="driver-toggle" class="driver-toggle" role="group" aria-label="Connection format"></div>
+          <div
+            id="driver-toggle"
+            class="segmented-control"
+            aria-label="Connection format"
+          ></div>
         </div>
       </section>
 
@@ -104,11 +108,15 @@
               <button
                 type="button"
                 id="conn-password-toggle"
-                class="btn btn-icon conn-password-toggle"
-                aria-label="Show password"
+                class="btn btn-icon btn-toggle conn-password-toggle"
                 aria-pressed="false"
-                data-icon="visibility"
-                data-icon-class="btn-icon-svg"
+                data-toggle-button
+                data-toggle-button-always-active
+                data-toggle-button-icon-off="visibility"
+                data-toggle-button-icon-on="visibility-off"
+                data-toggle-button-aria-label-off="Show password"
+                data-toggle-button-aria-label-on="Hide password"
+                data-toggle-button-icon-class="btn-icon-svg"
               ></button>
             </span>
             <span class="field-hint hidden" id="conn-password-hint" hidden></span>
@@ -142,13 +150,13 @@
           </button>
           <div id="conn-advanced-panel" class="expand-panel hidden" hidden>
             <div class="expand-body conn-advanced-grid">
-              <label class="field conn-opt-dsn" for="conn-use-dsn">
-                <span class="field-label">Use DSN (ODBC)</span>
-                <span class="conn-checkbox-wrap">
-                  <input type="checkbox" id="conn-use-dsn" class="conn-checkbox" autocomplete="off" />
+              <div class="field conn-opt-dsn">
+                <span class="field-label" id="conn-use-dsn-heading">Use DSN (ODBC)</span>
+                <label class="checkbox" for="conn-use-dsn">
+                  <input type="checkbox" id="conn-use-dsn" class="checkbox-input" autocomplete="off" />
                   <span>Connect using a configured ODBC data source name</span>
-                </span>
-              </label>
+                </label>
+              </div>
 
               <label class="field conn-opt-dsn-name" for="conn-dsn">
                 <span class="field-label">DSN name</span>
@@ -168,13 +176,13 @@
                 </select>
               </label>
 
-              <label class="field conn-opt-mssql-encrypt" for="conn-encrypt">
-                <span class="field-label">Encrypt connection</span>
-                <span class="conn-checkbox-wrap">
-                  <input type="checkbox" id="conn-encrypt" class="conn-checkbox" autocomplete="off" />
+              <div class="field conn-opt-mssql-encrypt">
+                <span class="field-label" id="conn-encrypt-heading">Encrypt connection</span>
+                <label class="checkbox" for="conn-encrypt">
+                  <input type="checkbox" id="conn-encrypt" class="checkbox-input" autocomplete="off" />
                   <span>Use encrypted connection (recommended for Azure)</span>
-                </span>
-              </label>
+                </label>
+              </div>
 
               <label class="field conn-opt-oracle-mode" for="conn-oracle-mode">
                 <span class="field-label">Oracle descriptor</span>
@@ -184,13 +192,13 @@
                 </select>
               </label>
 
-              <label class="field conn-opt-oracle-os" for="conn-os-auth">
-                <span class="field-label">OS authentication</span>
-                <span class="conn-checkbox-wrap">
-                  <input type="checkbox" id="conn-os-auth" class="conn-checkbox" autocomplete="off" />
+              <div class="field conn-opt-oracle-os">
+                <span class="field-label" id="conn-os-auth-heading">OS authentication</span>
+                <label class="checkbox" for="conn-os-auth">
+                  <input type="checkbox" id="conn-os-auth" class="checkbox-input" autocomplete="off" />
                   <span>Use operating system authentication</span>
-                </span>
-              </label>
+                </label>
+              </div>
 
               <label class="field conn-opt-db2-mode" for="conn-db2-mode">
                 <span class="field-label">DB2 connect mode</span>
@@ -229,13 +237,13 @@
                 <input type="text" id="conn-charset" class="input" autocomplete="off" spellcheck="false" placeholder="e.g. utf8" />
               </label>
 
-              <label class="field conn-opt-sqlite-memory" for="conn-sqlite-memory">
-                <span class="field-label">In-memory database (SQLite)</span>
-                <span class="conn-checkbox-wrap">
-                  <input type="checkbox" id="conn-sqlite-memory" class="conn-checkbox" autocomplete="off" />
+              <div class="field conn-opt-sqlite-memory">
+                <span class="field-label" id="conn-sqlite-memory-heading">In-memory database (SQLite)</span>
+                <label class="checkbox" for="conn-sqlite-memory">
+                  <input type="checkbox" id="conn-sqlite-memory" class="checkbox-input" autocomplete="off" />
                   <span>Use <code>:memory:</code> instead of a file path</span>
-                </span>
-              </label>
+                </label>
+              </div>
 
               <label class="field conn-opt-sqlite-version" for="conn-sqlite-version">
                 <span class="field-label">SQLite version</span>
@@ -261,9 +269,14 @@
             aria-label="Generated connection string"
             spellcheck="false"
           ></textarea>
-          <button type="button" id="conn-copy" class="btn btn-primary conn-copy-btn">
+          <button
+            type="button"
+            id="conn-copy"
+            class="btn btn-primary conn-copy-btn btn-label-flash"
+            aria-label="Copy"
+          >
             <span data-icon="copy" data-icon-class="btn-icon-svg" aria-hidden="true"></span>
-            <span id="conn-copy-label">Copy</span>
+            <span class="btn-label-flash__label">Copy</span>
           </button>
         </div>
         <div class="banner banner-info" role="note">

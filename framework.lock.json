@@ -4,7 +4,11 @@
   "source": "filcuk/sma1-framework",
   "components": [
     "dropdown",
-    "expand"
+    "expand",
+    "toggle-button",
+    "segmented-control",
+    "checkbox",
+    "fields"
   ],
   "skills": [
     "*"

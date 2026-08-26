@@ -1,8 +1,16 @@
 import { initShell } from "./shell/shell.js";
 import { initDropdown } from "./components/dropdown.js";
 import { initExpand } from "./components/expand.js";
-import { initIcons, mountIcon } from "./utils/icons.js";
+import { initToggleButton } from "./components/toggle-button.js";
+import { initSegmentedControl } from "./components/segmented-control.js";
+import { initIcons } from "./utils/icons.js";
 import { setHidden } from "./utils/dom.js";
+import { copyText } from "./utils/clipboard.js";
+import {
+  flashButtonLabel,
+  prepareButtonLabelFlash,
+  setButtonLabelFlash,
+} from "./utils/button-label.js";
 import {
   buildConnectionString,
   DATABASES,
@@ -28,7 +36,6 @@ const dbDropdownMenu = document.getElementById("db-dropdown-menu");
 const formatToggleEl = document.getElementById("driver-toggle");
 const outputEl = document.getElementById("conn-output");
 const copyBtn = document.getElementById("conn-copy");
-const copyLabel = document.getElementById("conn-copy-label");
 const driverPresetEl = document.getElementById("conn-driver-preset");
 const driverCustomEl = document.getElementById("conn-driver-custom");
 const driverLabelEl = document.getElementById("conn-driver-label");
@@ -70,11 +77,14 @@ const portFieldEl = document.querySelector('label[for="conn-port"]');
 const databaseFieldEl = document.querySelector('label[for="conn-database"]');
 
 const CUSTOM_DRIVER_VALUE = "__custom__";
-let copyResetTimer = 0;
 /** Full connection string (unmasked) — used for copy. */
 let connectionStringForCopy = "";
 /** @type {ReturnType<typeof initExpand> | null} */
 let advancedExpand = null;
+/** @type {ReturnType<typeof initToggleButton> | null} */
+let passwordToggleBtn = null;
+/** @type {ReturnType<typeof initSegmentedControl> | null} */
+let formatToggle = null;
 
 function buildDbMenu() {
   dbDropdownMenu.replaceChildren(
@@ -95,23 +105,55 @@ function buildDbMenu() {
 
 function renderFormatToggle() {
   const formats = DATABASES[currentDb].drivers;
-  formatToggleEl.replaceChildren(
-    ...formats.map((format) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "btn driver-toggle-btn";
-      button.dataset.driver = format;
-      button.textContent = FORMAT_LABELS[format];
-      button.setAttribute("aria-pressed", String(format === currentFormat));
-      return button;
-    })
-  );
 
   if (!formats.includes(currentFormat)) {
     currentFormat = formats[0];
   }
 
-  setHidden(formatToggleEl, formats.length <= 1);
+  formatToggle = null;
+  formatToggleEl.replaceChildren();
+
+  if (formats.length <= 1) {
+    setHidden(formatToggleEl, true);
+    return;
+  }
+
+  setHidden(formatToggleEl, false);
+
+  const list = document.createElement("div");
+  list.className = "segmented-control-list";
+  list.setAttribute("role", "radiogroup");
+  list.setAttribute("aria-label", "Connection format");
+
+  for (const format of formats) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "segmented-control-item";
+    button.setAttribute("role", "radio");
+    button.setAttribute("aria-checked", String(format === currentFormat));
+    button.dataset.segmentedControlValue = format;
+    button.textContent = FORMAT_LABELS[format];
+    list.append(button);
+  }
+
+  const hidden = document.createElement("input");
+  hidden.type = "hidden";
+  hidden.className = "segmented-control-value";
+  hidden.name = "connection-format";
+  hidden.value = currentFormat;
+
+  formatToggleEl.append(list, hidden);
+  formatToggleEl.dataset.segmentedControlDefault = currentFormat;
+
+  formatToggle = initSegmentedControl(formatToggleEl, {
+    defaultValue: currentFormat,
+    onChange: ({ value, source }) => {
+      if (source === "init") return;
+      if (value && value !== currentFormat) {
+        applyFormatChange(/** @type {import("./connection-string/types.js").ConnectionFormat} */ (value));
+      }
+    },
+  });
 }
 
 function updateFieldLabels() {
@@ -308,9 +350,6 @@ function applyDatabaseChange(db, { resetPort = true } = {}) {
 
 function applyFormatChange(format) {
   currentFormat = format;
-  formatToggleEl.querySelectorAll(".driver-toggle-btn").forEach((btn) => {
-    btn.setAttribute("aria-pressed", String(btn.dataset.driver === format));
-  });
   if (format !== "odbc") {
     advancedInputs.useDsn.checked = false;
   }
@@ -322,49 +361,23 @@ async function copyOutput() {
   const text = connectionStringForCopy;
   if (!text) return;
 
-  let copied = false;
-  if (navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(text);
-      copied = true;
-    } catch {
-      copied = false;
-    }
-  }
-
-  if (!copied) {
-    outputEl.value = text;
-    outputEl.focus();
-    outputEl.select();
-    copied = document.execCommand("copy");
-    updateOutput();
-  }
-
-  if (copied) {
-    copyLabel.textContent = "Copied!";
-    window.clearTimeout(copyResetTimer);
-    copyResetTimer = window.setTimeout(() => {
-      copyLabel.textContent = "Copy";
-    }, 2000);
-  }
+  const copied = await copyText(text);
+  flashButtonLabel(copyBtn, copied, {
+    reset: () => {
+      copyBtn.setAttribute("aria-label", "Copy");
+      setButtonLabelFlash(copyBtn, "Copy");
+    },
+  });
 }
 
-function togglePasswordVisibility() {
-  const visible = passwordInput.type === "password";
-  passwordInput.type = visible ? "text" : "password";
-  passwordToggle.setAttribute("aria-pressed", String(visible));
-  passwordToggle.setAttribute("aria-label", visible ? "Hide password" : "Show password");
-  mountIcon(passwordToggle, visible ? "visibility-off" : "visibility", {
-    className: "btn-icon-svg",
-  });
+function applyPasswordVisibility(pressed) {
+  passwordInput.type = pressed ? "text" : "password";
   updateOutput();
 }
 
 function resetPasswordVisibility() {
-  passwordInput.type = "password";
-  passwordToggle.setAttribute("aria-pressed", "false");
-  passwordToggle.setAttribute("aria-label", "Show password");
-  mountIcon(passwordToggle, "visibility", { className: "btn-icon-svg" });
+  passwordToggleBtn?.setPressed(false, { emit: false });
+  applyPasswordVisibility(false);
 }
 
 /** Reset all configuration and connection fields to defaults (no persisted state). */
@@ -430,15 +443,16 @@ initDropdown(document.getElementById("db-dropdown"), {
 
 advancedExpand = initExpand(document.getElementById("conn-advanced"));
 
-formatToggleEl.addEventListener("click", (event) => {
-  const button = event.target.closest(".driver-toggle-btn");
-  if (!button) return;
-  const format = /** @type {import("./connection-string/types.js").ConnectionFormat} */ (
-    button.dataset.driver
-  );
-  if (format && format !== currentFormat) {
-    applyFormatChange(format);
-  }
+passwordToggleBtn = initToggleButton(passwordToggle, {
+  alwaysActive: true,
+  iconOff: "visibility",
+  iconOn: "visibility-off",
+  ariaLabelOff: "Show password",
+  ariaLabelOn: "Hide password",
+  iconClass: "btn-icon-svg",
+  onChange: ({ pressed }) => {
+    applyPasswordVisibility(pressed);
+  },
 });
 
 driverPresetEl.addEventListener("change", () => {
@@ -474,7 +488,12 @@ document.getElementById("conn-app").addEventListener("change", (event) => {
 });
 
 copyBtn.addEventListener("click", copyOutput);
-passwordToggle.addEventListener("click", togglePasswordVisibility);
+
+prepareButtonLabelFlash(copyBtn, {
+  idle: "Copy",
+  success: "Copied",
+  fail: "Failed",
+});
 
 document.getElementById("conn-form")?.addEventListener("submit", (event) => {
   event.preventDefault();
