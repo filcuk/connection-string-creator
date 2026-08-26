@@ -1,0 +1,184 @@
+/* Connection string generator (fork-owned; sync will not overwrite) */
+
+.conn-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.driver-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.driver-toggle-btn {
+  border: none;
+  border-radius: 0;
+  border-right: 1px solid var(--border);
+  position: relative;
+  z-index: 0;
+}
+
+.driver-toggle-btn:first-child {
+  border-radius: 5px 0 0 5px;
+}
+
+.driver-toggle-btn:last-child {
+  border-right: none;
+  border-radius: 0 5px 5px 0;
+}
+
+.driver-toggle-btn:hover:not(:disabled) {
+  z-index: 1;
+  background: var(--code-bg);
+  border-color: var(--border);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.driver-toggle-btn:focus-visible {
+  z-index: 2;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.driver-toggle-btn[aria-pressed="true"] {
+  background: var(--code-bg);
+  color: var(--text);
+  z-index: 1;
+}
+
+.driver-toggle-btn[aria-pressed="true"]:hover:not(:disabled) {
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.dropdown-chevron {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+.conn-form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.conn-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .conn-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.conn-form-grid .field {
+  max-width: none;
+}
+
+.field-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.conn-password-wrap {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.conn-password-wrap .input {
+  padding-right: 2.75rem;
+}
+
+.conn-password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.25rem;
+  transform: translateY(-50%);
+}
+
+.conn-select {
+  cursor: pointer;
+}
+
+.conn-output-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.conn-output {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  min-height: 5rem;
+  resize: vertical;
+}
+
+.conn-copy-btn {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+@media (min-width: 640px) {
+  .conn-password-field {
+    grid-column: span 1;
+  }
+}
+
+.conn-advanced {
+  margin-top: 0.25rem;
+}
+
+.conn-advanced-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  padding-top: 0.5rem;
+}
+
+@media (min-width: 640px) {
+  .conn-advanced-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.conn-advanced-grid .field {
+  max-width: none;
+}
+
+.conn-checkbox-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.conn-checkbox {
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+}
+
+.conn-checkbox-wrap code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+}
+
+@media (min-width: 640px) {
+  .conn-driver-field {
+    grid-column: 1 / -1;
+  }
+}
