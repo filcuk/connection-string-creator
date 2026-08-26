@@ -1,35 +1,40 @@
 ---
-description: Do not invent SVG markup in app/icons.js — add skeleton entries only
-globs: app/icons.js
-alwaysApply: false
+description: Never invent SVG icons — use icons modules only; ask the user to add missing icons
+alwaysApply: true
 ---
 
-# Icons (`app/icons.js`)
+# Icons — do not invent or generate
 
-Do **not** fabricate or guess SVG path markup. Agents are not reliable sources for icon geometry.
+Inline UI icons are defined in:
 
-When a new icon is needed:
+- [`app/utils/icons-framework.js`](app/utils/icons-framework.js) — framework catalogue (`FRAMEWORK_ICONS`; synced / hashed)
+- [`app/utils/icons-app.js`](app/utils/icons-app.js) — fork / app icons (`APP_ICONS`; never overwritten by sync)
+- [`app/utils/icons.js`](app/utils/icons.js) — merges both (app wins on key clash) and exports `createIcon` / `initIcons`
 
-1. Add a **skeleton entry** to `ICONS` with metadata only — leave `markup` empty or as a placeholder the user will replace.
-2. Set `viewBox`, `name` (Icônes collection id), and `attribution` when sourcing from Material Icons.
-3. Wire up usage elsewhere (`data-icon="…"` in HTML or `createIcon()` in JS) if needed.
-4. **Stop** and tell the user which skeleton was added so they can paste path markup from [Icônes — Material Icons (Round)](https://icones.js.org/collection/ic?s=info&variant=Round).
+See the **Available** lists in the framework catalogue and app file headers.
 
-Prefer `{ ref: "existing-icon" }` when an existing icon already fits — no new entry required.
+## Never
 
-## Skeleton example
+- Invent, guess, or generate SVG path data (`d="…"`, `<path>`, `<svg>`, etc.)
+- Paste icon markup from memory, a casual web scrape, or image generation into HTML, CSS, or JS
+- Duplicate SVG paths outside the icons modules above
+- Approximate or “fix up” path `d` data when sourcing from Icônes
 
-```javascript
-"my-icon": {
-  viewBox: "0 0 24 24",
-  markup: ``,
-  attribution: ICON_ATTRIBUTIONS.materialIcons,
-  name: "round-my-icon", // Icônes id — user fills in markup
-},
-```
+## When an icon is missing
 
-## Do not
+1. **Stop** — do not substitute a made-up icon.
+2. **Reuse** an existing icon if one is close enough (`data-icon`, `createIcon()`, or `{ ref: "other-icon" }`).
+3. **Pull from Icônes** via the [`add-icon`](../skills/add-icon/SKILL.md) skill (Iconify fetch script — exact markup, `name`, and `attribution`). Prefer [Material Icons Round (`ic`)](https://icones.js.org/collection/ic?s=info&variant=Round); fall back to Material Symbols Rounded. Ask for the app id and place (framework catalogue vs app) if the user did not provide them.
+4. Or ask the user to supply their own vector asset / paste markup — then use [`handle-assets`](../skills/handle-assets/SKILL.md) for stubs and wiring.
+5. You may add a **blank placeholder entry** in `APP_ICONS` / `FRAMEWORK_ICONS` using the entry stub in those files (empty `markup`, correct `viewBox`) so wiring (`data-icon`, imports) can land in the same change — then tell the user to fill in the paths (or finish with `add-icon`).
 
-- Invent `<path>` or other SVG elements from memory
-- Copy approximate paths from training data
-- Add fully populated icon entries unless the user explicitly pasted the source SVG markup in the chat
+## Allowed without user-provided paths
+
+- `data-icon="existing-id"` / `createIcon("existing-id")` for ids already in the merged `ICONS`
+- `{ ref: "existing-id" }` aliases
+- Exact Iconify bodies inserted by following **`add-icon`** (fetch script only — not from memory)
+- Blank icon stub with `markup: \`\`` only when the user has agreed to add the icon
+
+## Logo / raster assets
+
+Brand images stay in `app/res/` — same rule: do not invent; use existing files or ask the user to supply them.
