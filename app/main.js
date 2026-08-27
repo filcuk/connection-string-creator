@@ -5,6 +5,7 @@ import { initSegmentedControl } from "./components/segmented-control.js";
 import { initDurationInput, parseDurationValue } from "./components/duration-input.js";
 import { initCombobox } from "./components/combobox.js";
 import { initAboutDialog } from "./components/about-dialog.js";
+import { initDialog } from "./components/dialog.js";
 import { initPopover } from "./components/popover.js";
 import { initTutorial } from "./components/tutorial.js";
 import { initIcons } from "./utils/icons.js";
@@ -151,6 +152,8 @@ const driverDropdownMenu = document.getElementById("driver-dropdown-menu");
 const formatToggleEl = document.getElementById("driver-toggle");
 const outputEl = document.getElementById("conn-output");
 const copyBtn = document.getElementById("conn-copy");
+const resetBtn = document.getElementById("conn-reset");
+const resetConfirmBtn = document.getElementById("conn-reset-confirm");
 const driverCustomEl = document.getElementById("conn-driver-custom");
 const driverLabelEl = document.getElementById("conn-driver-label");
 const driverFieldEl = document.querySelector(".conn-driver-field");
@@ -809,6 +812,7 @@ function updateOutput() {
     connectionStringForCopy = "";
     outputEl.value = "";
     syncCopyButtonState();
+    syncResetButtonState();
     savePersistedForm();
     return;
   }
@@ -831,11 +835,39 @@ function updateOutput() {
     values: displayValues,
   });
   syncCopyButtonState();
+  syncResetButtonState();
   savePersistedForm();
 }
 
 function syncCopyButtonState() {
   copyBtn.disabled = !connectionStringForCopy;
+}
+
+/** True when configuration and fields match the post-reset defaults. */
+function isFormBlank() {
+  const values = readFormValues();
+  const defaultDriver = getDefaultDriver("mssql", "odbc");
+
+  if (currentDb !== "mssql" || currentFormat !== "odbc") return false;
+  if (currentAuthMode !== "sql") return false;
+  if (values.host || values.database || values.username || values.password) return false;
+  if (values.port !== getDefaultPort("mssql")) return false;
+  if (currentDriverValue === CUSTOM_DRIVER_VALUE) return false;
+  if (currentDriverValue !== defaultDriver) return false;
+  if (values.useDsn || values.dsn) return false;
+  if (values.encrypt || values.osAuth || values.sqliteInMemory) return false;
+  if (values.connectionTimeout) return false;
+  if (values.dbAlias || values.schema || values.packageCollection || values.charset) return false;
+  if (values.sslMode !== "off") return false;
+  if (values.sqliteVersion !== "3") return false;
+  if (values.oracleConnectMode !== "easyconnect") return false;
+  if (values.db2ConnectMode !== "hostname") return false;
+  return true;
+}
+
+function syncResetButtonState() {
+  if (!(resetBtn instanceof HTMLButtonElement)) return;
+  resetBtn.disabled = isFormBlank();
 }
 
 function applyDatabaseChange(db, { resetPort = true } = {}) {
@@ -1076,6 +1108,16 @@ document.getElementById("conn-app").addEventListener("change", (event) => {
 });
 
 copyBtn.addEventListener("click", copyOutput);
+
+const resetDialog = initDialog({
+  dialogEl: document.getElementById("reset-dialog"),
+  openTriggers: [resetBtn],
+});
+
+resetConfirmBtn?.addEventListener("click", () => {
+  resetConnectionForm();
+  resetDialog?.closeDialog();
+});
 
 prepareButtonLabelFlash(copyBtn, {
   idle: "Copy",

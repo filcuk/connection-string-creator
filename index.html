@@ -67,6 +67,14 @@
             class="segmented-control"
             aria-label="Connection format"
           ></div>
+          <button
+            type="button"
+            id="conn-reset"
+            class="btn btn-danger conn-reset-btn"
+            disabled
+          >
+            Reset all
+          </button>
         </div>
       </section>
 
@@ -463,6 +471,42 @@
         </div>
       </section>
     </main>
+
+    <div
+      id="reset-dialog"
+      class="modal hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="reset-dialog-title"
+      hidden
+    >
+      <div class="modal-backdrop" data-dialog-close></div>
+      <div class="modal-panel">
+        <div class="modal-header">
+          <h2 id="reset-dialog-title">Reset all?</h2>
+          <button type="button" class="modal-close" aria-label="Close" data-dialog-close>×</button>
+        </div>
+        <div class="modal-body">
+          <p>
+            Clear every field and restore the default database and API selection.
+            This cannot be undone.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <div class="modal-footer-actions">
+            <button type="button" class="btn" data-dialog-close>Cancel</button>
+            <button
+              type="button"
+              class="btn btn-danger"
+              id="conn-reset-confirm"
+              data-dialog-default
+            >
+              Reset all
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <div
       id="about-dialog"
