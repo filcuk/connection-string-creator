@@ -94,9 +94,15 @@
   max-width: none;
 }
 
-.conn-port-field .input {
+.conn-port-field .input,
+.conn-opt-timeout .input {
   width: calc(8ch + 1.5rem);
   max-width: 100%;
+}
+
+.conn-output-incomplete {
+  margin: 0;
+  color: var(--banner-error-text);
 }
 
 .conn-form input[type="number"] {

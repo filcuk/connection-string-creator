@@ -2,7 +2,6 @@ import { initShell } from "./shell/shell.js";
 import { initDropdown } from "./components/dropdown.js";
 import { initToggleButton } from "./components/toggle-button.js";
 import { initSegmentedControl } from "./components/segmented-control.js";
-import { initDurationInput, parseDurationValue } from "./components/duration-input.js";
 import { initCombobox } from "./components/combobox.js";
 import { initAboutDialog } from "./components/about-dialog.js";
 import { initDialog } from "./components/dialog.js";
@@ -190,12 +189,14 @@ const sqliteVersionToggleEl = document.getElementById("sqlite-version-toggle");
 const sslToggleEl = document.getElementById("ssl-toggle");
 const charsetInputEl = document.getElementById("conn-charset");
 const charsetComboboxEl = document.getElementById("charset-combobox");
-const timeoutDurationEl = document.getElementById("conn-timeout");
+const timeoutInputEl = document.getElementById("conn-timeout");
+const outputIncompleteEl = document.getElementById("conn-output-incomplete");
 
 /** @type {ReturnType<typeof initCombobox> | null} */
 let charsetCombobox = null;
-/** @type {ReturnType<typeof initDurationInput> | null} */
-let timeoutDuration = null;
+
+/** True when username was auto-filled as SYSDBA for Firebird. */
+let firebirdUserAutoFilled = false;
 
 const hostFieldEl = document.querySelector('label[for="conn-host"]');
 const portFieldEl = document.querySelector('label[for="conn-port"]');
@@ -218,16 +219,21 @@ let sqliteVersionToggle = null;
 /** @type {ReturnType<typeof initSegmentedControl> | null} */
 let sslToggle = null;
 
-/** Convert duration control (H:MM:SS) to timeout seconds for builders; omit when zero. */
+/** Read timeout seconds from the number input; omit when empty or zero. */
 function readConnectionTimeout() {
-  const hidden = document.querySelector("#conn-timeout .duration-input-value");
-  const parts = parseDurationValue(hidden?.value, { showSeconds: true });
-  if (parts) {
-    const total = parts.hours * 3600 + parts.minutes * 60 + parts.seconds;
-    return total > 0 ? String(total) : "";
-  }
-  const seconds = timeoutDuration?.getSeconds() ?? 0;
-  return seconds > 0 ? String(seconds) : "";
+  if (!(timeoutInputEl instanceof HTMLInputElement)) return "";
+  const raw = timeoutInputEl.value.trim();
+  if (!raw) return "";
+  const seconds = Number(raw);
+  if (!Number.isFinite(seconds) || seconds <= 0) return "";
+  return String(Math.min(65535, Math.trunc(seconds)));
+}
+
+/** Write timeout seconds into the number input (empty when zero/omitted). */
+function setConnectionTimeoutSeconds(seconds) {
+  if (!(timeoutInputEl instanceof HTMLInputElement)) return;
+  const n = Number(seconds);
+  timeoutInputEl.value = Number.isFinite(n) && n > 0 ? String(Math.trunc(n)) : "";
 }
 
 function driverPresetLabel(preset) {
@@ -331,7 +337,15 @@ function updateFieldLabels() {
     const input = fieldInputs[field.id];
 
     if (labelEl) labelEl.textContent = field.label;
-    if (input && field.placeholder) input.placeholder = field.placeholder;
+
+    if (input) {
+      if (field.id === "port") {
+        const defaultPort = getDefaultPort(currentDb);
+        input.placeholder = defaultPort || field.placeholder || "";
+      } else if (field.placeholder) {
+        input.placeholder = field.placeholder;
+      }
+    }
 
     if (hintEl) {
       if (field.hint) {
@@ -345,7 +359,10 @@ function updateFieldLabels() {
   }
 }
 
-function renderDriverPresets() {
+/**
+ * @param {{ preserveSelection?: boolean }} [options]
+ */
+function renderDriverPresets({ preserveSelection = false } = {}) {
   const presets = getDriverPresets(currentDb, currentFormat);
   const isOledb = currentFormat === "oledb";
   const hideDriver = currentFormat === "adonet";
@@ -384,6 +401,18 @@ function renderDriverPresets() {
       return item;
     })()
   );
+
+  if (preserveSelection) {
+    if (currentDriverValue === CUSTOM_DRIVER_VALUE) {
+      setDriverSelection(CUSTOM_DRIVER_VALUE, CUSTOM_DRIVER_LABEL, { showCustom: true });
+      return;
+    }
+    const kept = presets.find((preset) => preset.value === currentDriverValue);
+    if (kept) {
+      setDriverSelection(kept.value, driverPresetLabel(kept));
+      return;
+    }
+  }
 
   const defaultDriver = getDefaultDriver(currentDb, currentFormat);
   const defaultPreset = presets.find((preset) => preset.value === defaultDriver);
@@ -779,7 +808,7 @@ function applyPersistedForm(state) {
     typeof state.connectionTimeout === "string" && state.connectionTimeout
       ? Number(state.connectionTimeout)
       : 0;
-  timeoutDuration?.setSeconds(Number.isFinite(timeoutSeconds) ? timeoutSeconds : 0);
+  setConnectionTimeoutSeconds(Number.isFinite(timeoutSeconds) ? timeoutSeconds : 0);
 
   const sslMode =
     state.sslMode === "preferred" || state.sslMode === "required" ? state.sslMode : "off";
@@ -849,7 +878,44 @@ function updateOutput() {
 }
 
 function syncCopyButtonState() {
-  copyBtn.disabled = !connectionStringForCopy;
+  const hasOutput = Boolean(connectionStringForCopy);
+  copyBtn.disabled = !hasOutput;
+
+  const incomplete = hasOutput && hasRequiredGaps();
+  setHidden(outputIncompleteEl, !incomplete);
+  if (incomplete) {
+    copyBtn.setAttribute("aria-label", "Copy incomplete connection string");
+  } else {
+    copyBtn.setAttribute("aria-label", "Copy");
+  }
+}
+
+/** True when any currently required field is empty. */
+function hasRequiredGaps() {
+  const useDsn = advancedInputs.useDsn.checked && currentFormat === "odbc";
+  const required = getRequiredFieldIds({
+    db: currentDb,
+    format: currentFormat,
+    useDsn,
+    sqliteInMemory: currentDb === "sqlite" && advancedInputs.sqliteMemory.checked,
+    db2ConnectMode: /** @type {"hostname" | "dbalias"} */ (advancedInputs.db2Mode.value),
+  });
+
+  for (const id of required) {
+    if (id === "host" && !fieldInputs.host?.value.trim()) return true;
+    if (id === "port" && !fieldInputs.port?.value.trim()) return true;
+    if (id === "database" && !fieldInputs.database?.value.trim()) return true;
+    if (id === "dsn" && !advancedInputs.dsn?.value.trim()) return true;
+    if (id === "dbAlias" && !advancedInputs.dbAlias?.value.trim()) return true;
+    if (id === "driver") {
+      const driverValue =
+        currentDriverValue === CUSTOM_DRIVER_VALUE
+          ? driverCustomEl?.value.trim() ?? ""
+          : currentDriverValue.trim();
+      if (!driverValue) return true;
+    }
+  }
+  return false;
 }
 
 /** True when configuration and fields match the post-reset defaults. */
@@ -883,6 +949,7 @@ function syncResetButtonState() {
 }
 
 function applyDatabaseChange(db, { resetPort = true } = {}) {
+  const previousDb = currentDb;
   currentDb = db;
   dbDropdownLabel.textContent = DATABASES[db].label;
 
@@ -894,12 +961,27 @@ function applyDatabaseChange(db, { resetPort = true } = {}) {
     fieldInputs.port.value = port;
   }
 
-  advancedInputs.encrypt.checked = encryptDefaultOn(db);
-  if (db === "firebird" && !fieldInputs.username.value) {
-    fieldInputs.username.value = "SYSDBA";
+  // Only apply encrypt default when the new engine’s default differs (e.g. Azure on).
+  if (encryptDefaultOn(db) !== encryptDefaultOn(previousDb)) {
+    advancedInputs.encrypt.checked = encryptDefaultOn(db);
   }
 
-  renderDriverPresets();
+  if (db === "firebird" && previousDb !== "firebird" && !fieldInputs.username.value.trim()) {
+    fieldInputs.username.value = "SYSDBA";
+    firebirdUserAutoFilled = true;
+  } else if (
+    previousDb === "firebird" &&
+    db !== "firebird" &&
+    firebirdUserAutoFilled &&
+    fieldInputs.username.value === "SYSDBA"
+  ) {
+    fieldInputs.username.value = "";
+    firebirdUserAutoFilled = false;
+  } else if (db !== "firebird") {
+    firebirdUserAutoFilled = false;
+  }
+
+  renderDriverPresets({ preserveSelection: true });
   updateOutput();
 }
 
@@ -912,7 +994,7 @@ function applyFormatChange(format) {
   if (format === "oledb" && currentDb === "db2") {
     advancedInputs.db2Mode.value = "hostname";
   }
-  renderDriverPresets();
+  renderDriverPresets({ preserveSelection: true });
   updateOutput();
 }
 
@@ -960,7 +1042,6 @@ function resetConnectionForm() {
 
   advancedInputs.useDsn.checked = false;
   advancedInputs.dsn.value = "";
-  timeoutDuration?.setSeconds(0);
   currentAuthMode = "sql";
   authToggle?.selectValue("sql", { emit: false });
   advancedInputs.encrypt.checked = false;
@@ -973,7 +1054,9 @@ function resetConnectionForm() {
   advancedInputs.schema.value = "";
   advancedInputs.packageCollection.value = "";
   advancedInputs.sqliteMemory.checked = false;
+  firebirdUserAutoFilled = false;
   charsetCombobox?.setValue("");
+  setConnectionTimeoutSeconds(0);
   sslToggle?.selectValue("off", { emit: false });
   sqliteVersionToggle?.selectValue("3", { emit: false });
 
@@ -1042,16 +1125,6 @@ charsetCombobox = initCombobox(charsetComboboxEl, {
   },
 });
 
-timeoutDuration = initDurationInput(timeoutDurationEl, {
-  onChange: ({ source }) => {
-    if (source === "init") return;
-    updateOutput();
-  },
-  onInput: () => {
-    updateOutput();
-  },
-});
-
 sqliteVersionToggle = initSegmentedControl(sqliteVersionToggleEl, {
   defaultValue: "3",
   onChange: ({ source }) => {
@@ -1097,6 +1170,10 @@ passwordToggleBtn = initToggleButton(passwordToggle, {
     if (source === "init") return;
     applyPasswordVisibility(pressed);
   },
+});
+
+fieldInputs.username?.addEventListener("input", () => {
+  if (currentDb === "firebird") firebirdUserAutoFilled = false;
 });
 
 driverCustomEl.addEventListener("input", updateOutput);

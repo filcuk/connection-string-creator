@@ -91,7 +91,16 @@
 
             <label class="field conn-port-field" for="conn-port">
               <span class="field-label" id="conn-port-label">Port</span>
-              <input type="number" id="conn-port" class="input" autocomplete="off" />
+              <input
+                type="number"
+                id="conn-port"
+                class="input"
+                min="0"
+                max="65535"
+                step="1"
+                inputmode="numeric"
+                autocomplete="off"
+              />
               <span class="field-hint hidden" id="conn-port-hint" hidden></span>
             </label>
 
@@ -239,34 +248,21 @@
         <hr class="panel-divider" aria-hidden="true" />
 
         <div class="conn-advanced-grid conn-form-section">
-          <div class="field duration-input conn-opt-timeout" id="conn-timeout" data-duration-seconds data-duration-default="0:00:00">
+          <label class="field conn-opt-timeout" for="conn-timeout">
             <span class="field-label" id="conn-timeout-label">Connection timeout</span>
-            <div class="duration-input-control" role="group" aria-labelledby="conn-timeout-label">
-              <input
-                type="text"
-                class="input duration-input-hours"
-                inputmode="numeric"
-                aria-label="Hours"
-              />
-              <span class="duration-input-sep" aria-hidden="true">:</span>
-              <input
-                type="text"
-                class="input duration-input-minutes"
-                inputmode="numeric"
-                maxlength="2"
-                aria-label="Minutes"
-              />
-              <span class="duration-input-sep" aria-hidden="true">:</span>
-              <input
-                type="text"
-                class="input duration-input-seconds"
-                inputmode="numeric"
-                maxlength="2"
-                aria-label="Seconds"
-              />
-            </div>
-            <input type="hidden" class="duration-input-value" name="connection-timeout" value="0:00:00" />
-          </div>
+            <input
+              type="number"
+              id="conn-timeout"
+              class="input"
+              min="0"
+              max="65535"
+              step="1"
+              inputmode="numeric"
+              placeholder="seconds"
+              autocomplete="off"
+            />
+            <span class="field-hint">Optional. Seconds to wait when opening a connection (0 = omit).</span>
+          </label>
 
           <div class="field conn-opt-mssql-encrypt">
             <span class="field-label" id="conn-encrypt-heading">Encrypt connection</span>
@@ -476,6 +472,9 @@
             <span data-icon="copy" data-icon-class="btn-icon-svg" aria-hidden="true"></span>
             <span class="btn-label-flash__label">Copy</span>
           </button>
+          <p id="conn-output-incomplete" class="field-hint conn-output-incomplete hidden" hidden>
+            Required fields are empty — the string may not work until you fill them in.
+          </p>
           <textarea
             id="conn-output"
             class="textarea conn-output"
