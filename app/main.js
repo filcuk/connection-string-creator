@@ -33,6 +33,13 @@ import {
 initShell();
 
 const ABOUT_HINT_STORAGE_KEY = "connection-string-generator-about-hint-seen";
+/** Persisted form inputs (never includes password). */
+const FORM_STORAGE_KEY = "connection-string-generator-form";
+/**
+ * Skip localStorage writes until boot finishes, and while resetting / restoring.
+ * (Component inits can emit onChange → updateOutput before restore runs.)
+ */
+let persistReady = false;
 const aboutOpenBtn = document.getElementById("about-open-btn");
 
 /** @type {ReturnType<typeof initPopover> | null} */
@@ -642,6 +649,159 @@ function maskPassword(value) {
   return "•".repeat(value.length);
 }
 
+/**
+ * Snapshot of form state safe to keep in localStorage.
+ * Password is never included — do not add it here.
+ * @returns {Record<string, unknown>}
+ */
+function collectPersistableState() {
+  const values = readFormValues();
+  return {
+    db: currentDb,
+    format: currentFormat,
+    authMode: currentAuthMode,
+    host: values.host,
+    port: values.port,
+    database: values.database,
+    username: values.username,
+    driverValue: currentDriverValue,
+    driverCustom: driverCustomEl.value,
+    useDsn: advancedInputs.useDsn.checked,
+    dsn: values.dsn,
+    encrypt: values.encrypt,
+    connectionTimeout: values.connectionTimeout,
+    osAuth: values.osAuth,
+    oracleConnectMode: values.oracleConnectMode,
+    db2ConnectMode: values.db2ConnectMode,
+    dbAlias: values.dbAlias,
+    schema: values.schema,
+    packageCollection: values.packageCollection,
+    sslMode: values.sslMode,
+    charset: values.charset,
+    sqliteInMemory: values.sqliteInMemory,
+    sqliteVersion: values.sqliteVersion,
+  };
+}
+
+function savePersistedForm() {
+  if (!persistReady) return;
+  try {
+    const state = collectPersistableState();
+    // Hard guarantee: never write a password key, even if added by mistake later.
+    delete state.password;
+    localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+/**
+ * @returns {Record<string, unknown> | null}
+ */
+function loadPersistedForm() {
+  try {
+    const raw = localStorage.getItem(FORM_STORAGE_KEY);
+    if (!raw) return null;
+    const state = JSON.parse(raw);
+    if (!state || typeof state !== "object" || Array.isArray(state)) return null;
+    // Discard any password that should never have been stored.
+    delete state.password;
+    return state;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Apply saved inputs. Password is always left empty.
+ * @param {Record<string, unknown>} state
+ * @returns {boolean}
+ */
+function applyPersistedForm(state) {
+  const db = state.db;
+  if (typeof db !== "string" || !DATABASE_IDS.includes(/** @type {import("./connection-string/types.js").DatabaseId} */ (db))) {
+    return false;
+  }
+
+  currentDb = /** @type {import("./connection-string/types.js").DatabaseId} */ (db);
+  dbDropdownLabel.textContent = DATABASES[currentDb].label;
+
+  const formats = DATABASES[currentDb].drivers;
+  const format = state.format;
+  currentFormat =
+    typeof format === "string" && formats.includes(/** @type {import("./connection-string/types.js").ConnectionFormat} */ (format))
+      ? /** @type {import("./connection-string/types.js").ConnectionFormat} */ (format)
+      : formats[0];
+
+  renderFormatToggle();
+  updateFieldLabels();
+
+  fieldInputs.host.value = typeof state.host === "string" ? state.host : "";
+  fieldInputs.port.value =
+    typeof state.port === "string" && state.port
+      ? state.port
+      : getDefaultPort(currentDb);
+  fieldInputs.database.value = typeof state.database === "string" ? state.database : "";
+  fieldInputs.username.value = typeof state.username === "string" ? state.username : "";
+  fieldInputs.password.value = "";
+  clearPasswordField();
+
+  currentAuthMode = state.authMode === "windows" ? "windows" : "sql";
+  authToggle?.selectValue(currentAuthMode, { emit: false });
+
+  advancedInputs.useDsn.checked = Boolean(state.useDsn) && currentFormat === "odbc";
+  advancedInputs.dsn.value = typeof state.dsn === "string" ? state.dsn : "";
+  advancedInputs.encrypt.checked = Boolean(state.encrypt);
+  advancedInputs.oracleMode.value =
+    state.oracleConnectMode === "tns" ? "tns" : "easyconnect";
+  advancedInputs.osAuth.checked = Boolean(state.osAuth);
+  advancedInputs.db2Mode.value =
+    state.db2ConnectMode === "dbalias" ? "dbalias" : "hostname";
+  advancedInputs.dbAlias.value = typeof state.dbAlias === "string" ? state.dbAlias : "";
+  advancedInputs.schema.value = typeof state.schema === "string" ? state.schema : "";
+  advancedInputs.packageCollection.value =
+    typeof state.packageCollection === "string" ? state.packageCollection : "";
+  advancedInputs.sqliteMemory.checked = Boolean(state.sqliteInMemory);
+
+  const timeoutSeconds =
+    typeof state.connectionTimeout === "string" && state.connectionTimeout
+      ? Number(state.connectionTimeout)
+      : 0;
+  timeoutDuration?.setSeconds(Number.isFinite(timeoutSeconds) ? timeoutSeconds : 0);
+
+  const sslMode =
+    state.sslMode === "preferred" || state.sslMode === "required" ? state.sslMode : "off";
+  sslToggle?.selectValue(sslMode, { emit: false });
+
+  charsetCombobox?.setValue(typeof state.charset === "string" ? state.charset : "");
+
+  const sqliteVersion = state.sqliteVersion === "2" ? "2" : "3";
+  sqliteVersionToggle?.selectValue(sqliteVersion, { emit: false });
+
+  renderDriverPresets();
+
+  const driverValue = typeof state.driverValue === "string" ? state.driverValue : "";
+  const driverCustom = typeof state.driverCustom === "string" ? state.driverCustom : "";
+  if (currentFormat === "adonet") {
+    currentDriverValue = "";
+  } else if (driverValue === CUSTOM_DRIVER_VALUE) {
+    driverCustomEl.value = driverCustom || getDefaultDriver(currentDb, currentFormat);
+    setDriverSelection(CUSTOM_DRIVER_VALUE, CUSTOM_DRIVER_LABEL, { showCustom: true });
+  } else if (driverValue) {
+    const presets = getDriverPresets(currentDb, currentFormat);
+    const preset = presets.find((entry) => entry.value === driverValue);
+    if (preset) {
+      setDriverSelection(preset.value, driverPresetLabel(preset));
+    } else {
+      driverCustomEl.value = driverValue;
+      setDriverSelection(CUSTOM_DRIVER_VALUE, CUSTOM_DRIVER_LABEL, { showCustom: true });
+    }
+  }
+
+  updateOutput();
+  return true;
+}
+
 function updateOutput() {
   updateFieldVisibility();
 
@@ -649,6 +809,7 @@ function updateOutput() {
     connectionStringForCopy = "";
     outputEl.value = "";
     syncCopyButtonState();
+    savePersistedForm();
     return;
   }
 
@@ -670,6 +831,7 @@ function updateOutput() {
     values: displayValues,
   });
   syncCopyButtonState();
+  savePersistedForm();
 }
 
 function syncCopyButtonState() {
@@ -724,21 +886,23 @@ function applyPasswordVisibility(pressed) {
   updateOutput();
 }
 
-function resetPasswordVisibility() {
+/** Clear password and hide it without triggering a persist cycle. */
+function clearPasswordField() {
+  if (passwordInput) passwordInput.value = "";
   passwordToggleBtn?.setPressed(false, { emit: false });
-  applyPasswordVisibility(false);
+  if (passwordInput) passwordInput.type = "password";
 }
 
-/** Reset all configuration and connection fields to defaults (no persisted state). */
+/** Reset all configuration and connection fields to defaults. */
 function resetConnectionForm() {
   currentDb = "mssql";
   currentFormat = "odbc";
   dbDropdownLabel.textContent = DATABASES.mssql.label;
 
   for (const input of Object.values(fieldInputs)) {
-    input.value = "";
+    if (input) input.value = "";
   }
-  resetPasswordVisibility();
+  clearPasswordField();
 
   currentDriverValue = "";
   driverDropdownLabel.textContent = "";
@@ -772,10 +936,24 @@ function resetConnectionForm() {
 }
 
 function bootConnectionForm() {
-  resetConnectionForm();
+  // Snapshot storage before hydrate; saves stay disabled until hydrate finishes
+  // so init-time onChange (e.g. password toggle) cannot overwrite it.
+  const saved = loadPersistedForm();
+
+  const hydrate = () => {
+    persistReady = false;
+    resetConnectionForm();
+    if (saved) applyPersistedForm(saved);
+    clearPasswordField();
+    updateOutput();
+    persistReady = true;
+    savePersistedForm();
+  };
+
+  hydrate();
   // Browsers may restore form controls after the first paint (reload / bfcache).
   requestAnimationFrame(() => {
-    resetConnectionForm();
+    requestAnimationFrame(hydrate);
   });
 }
 
@@ -865,7 +1043,8 @@ passwordToggleBtn = initToggleButton(passwordToggle, {
   ariaLabelOff: "Show password",
   ariaLabelOn: "Hide password",
   iconClass: "btn-icon-svg",
-  onChange: ({ pressed }) => {
+  onChange: ({ pressed, source }) => {
+    if (source === "init") return;
     applyPasswordVisibility(pressed);
   },
 });
