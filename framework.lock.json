@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 2,
+  "frameworkVersion": "0.13.2",
+  "source": "filcuk/sma1-framework",
+  "components": [
+    "dropdown",
+    "toggle-button",
+    "segmented-control",
+    "fields",
+    "section-panel",
+    "duration-input",
+    "combobox",
+    "badge",
+    "dialog",
+    "about-dialog",
+    "popover",
+    "tutorial"
+  ],
+  "skills": [
+    "*"
+  ]
+}

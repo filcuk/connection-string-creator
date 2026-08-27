@@ -4,17 +4,35 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Database Connection String Generator</title>
-    <link rel="icon" href="app/res/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="app/res/app.svg" type="image/svg+xml" data-brand-icon />
+    <script>
+      window.__MICROAPP__ = {
+        themeStorageKey: "microapp-theme",
+        appIcon: "app/res/app.svg",
+        appIconLight: "",
+        appIconDark: "",
+      };
+    </script>
     <script src="app/theme-init.js"></script>
     <link rel="stylesheet" href="app/styles.css" />
   </head>
   <body>
     <header>
       <div class="site-brand">
-        <img class="site-logo" src="app/res/icon.svg" alt="" width="40" height="40" />
+        <img
+          class="site-logo"
+          src="app/res/app.svg"
+          alt=""
+          width="40"
+          height="40"
+          data-brand-icon
+        />
         <h1>Database Connection String Generator</h1>
       </div>
-      <p class="tagline">Build connection strings for common databases.</p>
+      <p class="tagline">
+        Make the <em>connection</em> without the syntax headache.
+        <button type="button" id="about-open-btn" class="btn btn-link tagline-link">What?</button>
+      </p>
     </header>
 
     <main id="conn-app">
@@ -23,52 +41,155 @@
         <span class="banner-body">
           Credit to
           <a href="https://www.connectionstrings.com/" target="_blank" rel="noopener noreferrer">ConnectionStrings.com</a>
-          and its contributors for making this possible.
+          and its contributors as an excellent reference.
         </span>
       </div>
 
       <section class="content-section" aria-labelledby="config-heading">
-        <h2 id="config-heading" class="section-heading">Configuration</h2>
-        <div class="conn-toolbar">
-          <div class="dropdown" id="db-dropdown">
+        <h2 id="config-heading" class="section-title">Configuration</h2>
+        <div class="conn-toolbar" id="conn-toolbar">
+          <div class="dropdown" id="db-dropdown" data-dropdown-grid>
             <button
               type="button"
-              class="btn dropdown-trigger"
+              class="btn dropdown-trigger btn-label-flash"
               id="db-dropdown-trigger"
               aria-haspopup="menu"
               aria-expanded="false"
               aria-controls="db-dropdown-menu"
             >
-              <span id="db-dropdown-label">Microsoft SQL Server</span>
+              <span id="db-dropdown-label" class="btn-label-flash__label">Microsoft SQL Server</span>
               <span data-icon="chevron-down" data-icon-class="dropdown-chevron" aria-hidden="true"></span>
             </button>
             <ul id="db-dropdown-menu" class="dropdown-menu hidden" role="menu"></ul>
           </div>
-          <div id="driver-toggle" class="driver-toggle" role="group" aria-label="Connection format"></div>
+          <div
+            id="driver-toggle"
+            class="segmented-control"
+            aria-label="Connection format"
+          ></div>
+          <button
+            type="button"
+            id="conn-reset"
+            class="btn btn-danger conn-reset-btn"
+            disabled
+          >
+            Reset all
+          </button>
         </div>
       </section>
 
       <section class="content-section" aria-labelledby="details-heading">
-        <h2 id="details-heading" class="section-heading">Connection details</h2>
-        <form id="conn-form" class="conn-form" autocomplete="off" novalidate>
-        <div class="conn-form-grid">
-          <label class="field" for="conn-host">
-            <span class="field-label" id="conn-host-label">Server / host</span>
-            <input type="text" id="conn-host" class="input" autocomplete="off" spellcheck="false" />
-            <span class="field-hint hidden" id="conn-host-hint" hidden></span>
-          </label>
+        <h2 id="details-heading" class="section-title">Connection details</h2>
+        <form id="conn-form" class="section-panel conn-form" autocomplete="off" novalidate>
+        <div class="conn-form-grid conn-form-section">
+          <div class="conn-server-row">
+            <label class="field conn-host-field" for="conn-host">
+              <span class="field-label" id="conn-host-label">Server / host</span>
+              <input type="text" id="conn-host" class="input" autocomplete="off" spellcheck="false" />
+              <span class="field-hint hidden" id="conn-host-hint" hidden></span>
+            </label>
 
-          <label class="field" for="conn-port">
-            <span class="field-label" id="conn-port-label">Port</span>
-            <input type="number" id="conn-port" class="input" autocomplete="off" />
-            <span class="field-hint hidden" id="conn-port-hint" hidden></span>
-          </label>
+            <label class="field conn-port-field" for="conn-port">
+              <span class="field-label" id="conn-port-label">Port</span>
+              <input
+                type="number"
+                id="conn-port"
+                class="input"
+                min="0"
+                max="65535"
+                step="1"
+                inputmode="numeric"
+                autocomplete="off"
+              />
+              <span class="field-hint hidden" id="conn-port-hint" hidden></span>
+            </label>
 
-          <label class="field" for="conn-database">
-            <span class="field-label" id="conn-database-label">Database</span>
-            <input type="text" id="conn-database" class="input" autocomplete="off" spellcheck="false" />
-            <span class="field-hint hidden" id="conn-database-hint" hidden></span>
-          </label>
+            <label class="field conn-database-field" for="conn-database">
+              <span class="field-label" id="conn-database-label">Database</span>
+              <input type="text" id="conn-database" class="input" autocomplete="off" spellcheck="false" />
+              <span class="field-hint hidden" id="conn-database-hint" hidden></span>
+            </label>
+          </div>
+
+          <div class="field conn-source-row conn-dsn-row">
+            <label class="checkbox conn-opt-dsn">
+              <input type="checkbox" id="conn-use-dsn" class="checkbox-input" autocomplete="off" />
+              <span>Use DSN</span>
+            </label>
+            <label class="checkbox conn-opt-db2-alias">
+              <input type="checkbox" id="conn-use-db2-alias" class="checkbox-input" autocomplete="off" />
+              <span>Use alias</span>
+            </label>
+            <label class="checkbox conn-opt-sqlite-memory">
+              <input type="checkbox" id="conn-sqlite-memory" class="checkbox-input" autocomplete="off" />
+              <span>In-memory (<code>:memory:</code>)</span>
+            </label>
+            <label class="conn-source-name conn-dsn-name hidden" for="conn-dsn" hidden>
+              <span class="field-label">DSN Name</span>
+              <input
+                type="text"
+                id="conn-dsn"
+                class="input"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="MyDataSource"
+              />
+            </label>
+            <label class="conn-source-name conn-db-alias-name hidden" for="conn-db-alias" hidden>
+              <span class="field-label">Database alias</span>
+              <input
+                type="text"
+                id="conn-db-alias"
+                class="input"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="SAMPLE"
+              />
+            </label>
+          </div>
+        </div>
+
+        <hr class="panel-divider" aria-hidden="true" />
+
+        <div class="conn-form-grid conn-form-section">
+          <div class="field conn-opt-mssql-auth conn-auth-field">
+            <span class="field-label" id="conn-auth-label">Authentication</span>
+            <div
+              id="auth-toggle"
+              class="segmented-control"
+              data-segmented-control-default="sql"
+            >
+              <div class="segmented-control-list" role="radiogroup" aria-labelledby="conn-auth-label">
+                <button
+                  type="button"
+                  class="segmented-control-item"
+                  role="radio"
+                  aria-checked="true"
+                  data-segmented-control-value="sql"
+                >
+                  SQL login
+                </button>
+                <button
+                  type="button"
+                  class="segmented-control-item"
+                  role="radio"
+                  aria-checked="false"
+                  data-segmented-control-value="windows"
+                >
+                  Windows integrated
+                </button>
+              </div>
+              <input type="hidden" class="segmented-control-value" name="auth-mode" value="sql" />
+            </div>
+          </div>
+
+          <div class="field conn-opt-oracle-os">
+            <span class="field-label" id="conn-os-auth-heading">OS authentication</span>
+            <label class="checkbox">
+              <input type="checkbox" id="conn-os-auth" class="checkbox-input" autocomplete="off" />
+              <span>Use operating system authentication</span>
+            </label>
+          </div>
 
           <label class="field" for="conn-username">
             <span class="field-label" id="conn-username-label">Username</span>
@@ -89,146 +210,295 @@
               <button
                 type="button"
                 id="conn-password-toggle"
-                class="btn btn-icon conn-password-toggle"
-                aria-label="Show password"
+                class="btn btn-icon btn-slim btn-toggle conn-password-toggle"
                 aria-pressed="false"
-                data-icon="visibility"
-                data-icon-class="btn-icon-svg"
+                data-toggle-button
+                data-toggle-button-always-active
+                data-toggle-button-icon-off="visibility"
+                data-toggle-button-icon-on="visibility-off"
+                data-toggle-button-aria-label-off="Show password"
+                data-toggle-button-aria-label-on="Hide password"
+                data-toggle-button-icon-class="btn-icon-svg"
               ></button>
             </span>
             <span class="field-hint hidden" id="conn-password-hint" hidden></span>
           </label>
-
-          <label class="field conn-driver-field" for="conn-driver-preset">
-            <span class="field-label" id="conn-driver-label">Driver / provider</span>
-            <select id="conn-driver-preset" class="input conn-select" autocomplete="off"></select>
-            <input
-              type="text"
-              id="conn-driver-custom"
-              class="input hidden"
-              hidden
-              autocomplete="off"
-              spellcheck="false"
-              placeholder="Custom driver or provider name"
-            />
-            <span class="field-hint hidden" id="conn-driver-hint" hidden></span>
-          </label>
         </div>
 
-        <div class="expand conn-advanced" id="conn-advanced">
-          <button
-            type="button"
-            class="expand-trigger"
-            aria-expanded="false"
-            aria-controls="conn-advanced-panel"
-          >
-            <span class="expand-notch" aria-hidden="true"></span>
-            <span class="expand-label">Advanced options</span>
-          </button>
-          <div id="conn-advanced-panel" class="expand-panel hidden" hidden>
-            <div class="expand-body conn-advanced-grid">
-              <label class="field conn-opt-dsn" for="conn-use-dsn">
-                <span class="field-label">Use DSN (ODBC)</span>
-                <span class="conn-checkbox-wrap">
-                  <input type="checkbox" id="conn-use-dsn" class="conn-checkbox" autocomplete="off" />
-                  <span>Connect using a configured ODBC data source name</span>
-                </span>
-              </label>
+        <hr class="panel-divider" aria-hidden="true" />
 
-              <label class="field conn-opt-dsn-name" for="conn-dsn">
-                <span class="field-label">DSN name</span>
-                <input type="text" id="conn-dsn" class="input" autocomplete="off" spellcheck="false" />
-              </label>
+        <div class="conn-form-grid conn-form-section">
+          <div class="field conn-driver-field">
+            <span class="field-label" id="conn-driver-label">Driver / provider</span>
+            <div class="conn-driver-row">
+              <div class="dropdown" id="driver-dropdown">
+                <button
+                  type="button"
+                  class="btn dropdown-trigger btn-label-flash"
+                  id="driver-dropdown-trigger"
+                  aria-haspopup="menu"
+                  aria-expanded="false"
+                  aria-controls="driver-dropdown-menu"
+                  aria-labelledby="conn-driver-label driver-dropdown-label"
+                >
+                  <span id="driver-dropdown-label" class="btn-label-flash__label"></span>
+                  <span data-icon="chevron-down" data-icon-class="dropdown-chevron" aria-hidden="true"></span>
+                </button>
+                <ul id="driver-dropdown-menu" class="dropdown-menu hidden" role="menu"></ul>
+              </div>
+              <input
+                type="text"
+                id="conn-driver-custom"
+                class="input hidden"
+                hidden
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="Custom driver or provider name"
+              />
+            </div>
+            <span class="field-hint hidden" id="conn-driver-hint" hidden></span>
+          </div>
+        </div>
 
-              <label class="field conn-opt-timeout" for="conn-timeout">
-                <span class="field-label">Connection timeout (seconds)</span>
-                <input type="number" id="conn-timeout" class="input" min="0" autocomplete="off" placeholder="Optional" />
-              </label>
+        <hr class="panel-divider" aria-hidden="true" />
 
-              <label class="field conn-opt-mssql-auth" for="conn-auth-mode">
-                <span class="field-label">Authentication</span>
-                <select id="conn-auth-mode" class="input conn-select" autocomplete="off">
-                  <option value="sql">SQL login</option>
-                  <option value="windows">Windows integrated</option>
-                </select>
-              </label>
+        <div class="conn-advanced-grid conn-form-section">
+          <div class="field duration-input conn-opt-timeout" id="conn-timeout" data-duration-seconds data-duration-default="0:00:00">
+            <span class="field-label" id="conn-timeout-label">Connection timeout</span>
+            <div class="duration-input-control" role="group" aria-labelledby="conn-timeout-label">
+              <input
+                type="text"
+                class="input duration-input-hours"
+                inputmode="numeric"
+                aria-label="Hours"
+              />
+              <span class="duration-input-sep" aria-hidden="true">:</span>
+              <input
+                type="text"
+                class="input duration-input-minutes"
+                inputmode="numeric"
+                maxlength="2"
+                aria-label="Minutes"
+              />
+              <span class="duration-input-sep" aria-hidden="true">:</span>
+              <input
+                type="text"
+                class="input duration-input-seconds"
+                inputmode="numeric"
+                maxlength="2"
+                aria-label="Seconds"
+              />
+            </div>
+            <input type="hidden" class="duration-input-value" name="connection-timeout" value="0:00:00" />
+            <span class="field-hint">Optional time to wait when opening a connection.</span>
+          </div>
 
-              <label class="field conn-opt-mssql-encrypt" for="conn-encrypt">
-                <span class="field-label">Encrypt connection</span>
-                <span class="conn-checkbox-wrap">
-                  <input type="checkbox" id="conn-encrypt" class="conn-checkbox" autocomplete="off" />
-                  <span>Use encrypted connection (recommended for Azure)</span>
-                </span>
+          <div class="conn-encrypt-stack">
+            <div class="field conn-opt-mssql-encrypt">
+              <span class="field-label" id="conn-encrypt-heading">Encrypt connection</span>
+              <label class="checkbox">
+                <input type="checkbox" id="conn-encrypt" class="checkbox-input" autocomplete="off" />
+                <span id="conn-encrypt-text">Use encrypted connection</span>
               </label>
+            </div>
 
-              <label class="field conn-opt-oracle-mode" for="conn-oracle-mode">
-                <span class="field-label">Oracle descriptor</span>
-                <select id="conn-oracle-mode" class="input conn-select" autocomplete="off">
-                  <option value="easyconnect">Easy Connect (host:port/service)</option>
-                  <option value="tns">TNS (DESCRIPTION=…)</option>
-                </select>
+            <div class="field conn-opt-trust-cert">
+              <span class="field-label" id="conn-trust-cert-heading">Trust server certificate</span>
+              <label class="checkbox">
+                <input type="checkbox" id="conn-trust-cert" class="checkbox-input" autocomplete="off" />
+                <span>Skip validating the server TLS certificate</span>
               </label>
+            </div>
+          </div>
 
-              <label class="field conn-opt-oracle-os" for="conn-os-auth">
-                <span class="field-label">OS authentication</span>
-                <span class="conn-checkbox-wrap">
-                  <input type="checkbox" id="conn-os-auth" class="conn-checkbox" autocomplete="off" />
-                  <span>Use operating system authentication</span>
-                </span>
-              </label>
+          <label class="field conn-opt-oracle-mode" for="conn-oracle-mode">
+            <span class="field-label">Oracle descriptor</span>
+            <select id="conn-oracle-mode" class="input conn-select" autocomplete="off">
+              <option value="easyconnect">Easy Connect (host:port/service)</option>
+              <option value="tns">TNS (DESCRIPTION=…)</option>
+            </select>
+          </label>
 
-              <label class="field conn-opt-db2-mode" for="conn-db2-mode">
-                <span class="field-label">DB2 connect mode</span>
-                <select id="conn-db2-mode" class="input conn-select" autocomplete="off">
-                  <option value="hostname">Hostname and database</option>
-                  <option value="dbalias">Database alias (DBALIAS)</option>
-                </select>
-              </label>
+          <div class="field conn-opt-oracle-id">
+            <span class="field-label" id="conn-oracle-id-label">Oracle identifier</span>
+            <div
+              id="oracle-id-toggle"
+              class="segmented-control"
+              data-segmented-control-default="service"
+            >
+              <div
+                class="segmented-control-list"
+                role="radiogroup"
+                aria-labelledby="conn-oracle-id-label"
+              >
+                <button
+                  type="button"
+                  class="segmented-control-item"
+                  role="radio"
+                  aria-checked="true"
+                  data-segmented-control-value="service"
+                >
+                  Service name
+                </button>
+                <button
+                  type="button"
+                  class="segmented-control-item"
+                  role="radio"
+                  aria-checked="false"
+                  data-segmented-control-value="sid"
+                >
+                  SID
+                </button>
+              </div>
+              <input type="hidden" class="segmented-control-value" name="oracle-identifier" value="service" />
+            </div>
+          </div>
 
-              <label class="field conn-opt-db-alias" for="conn-db-alias">
-                <span class="field-label">Database alias</span>
-                <input type="text" id="conn-db-alias" class="input" autocomplete="off" spellcheck="false" />
-              </label>
+          <label class="field conn-opt-schema" for="conn-schema">
+            <span class="field-label">Schema</span>
+            <input type="text" id="conn-schema" class="input" autocomplete="off" spellcheck="false" placeholder="Optional (CurrentSchema / Default Schema)" />
+          </label>
 
-              <label class="field conn-opt-schema" for="conn-schema">
-                <span class="field-label">Schema</span>
-                <input type="text" id="conn-schema" class="input" autocomplete="off" spellcheck="false" placeholder="Optional (CurrentSchema / Default Schema)" />
-              </label>
+          <label class="field conn-opt-package" for="conn-package-collection">
+            <span class="field-label">Package collection (DB2 OLE DB)</span>
+            <input type="text" id="conn-package-collection" class="input" autocomplete="off" spellcheck="false" placeholder="Optional" />
+          </label>
 
-              <label class="field conn-opt-package" for="conn-package-collection">
-                <span class="field-label">Package collection (DB2 OLE DB)</span>
-                <input type="text" id="conn-package-collection" class="input" autocomplete="off" spellcheck="false" placeholder="Optional" />
-              </label>
+          <div class="field conn-opt-ssl">
+            <span class="field-label" id="conn-ssl-label">SSL</span>
+            <div
+              id="ssl-toggle"
+              class="segmented-control"
+              data-segmented-control-default="off"
+            >
+              <div class="segmented-control-list" role="radiogroup" aria-labelledby="conn-ssl-label">
+                <button
+                  type="button"
+                  class="segmented-control-item"
+                  role="radio"
+                  aria-checked="true"
+                  data-segmented-control-value="off"
+                >
+                  Off
+                </button>
+                <button
+                  type="button"
+                  class="segmented-control-item"
+                  role="radio"
+                  aria-checked="false"
+                  data-segmented-control-value="preferred"
+                >
+                  Preferred
+                </button>
+                <button
+                  type="button"
+                  class="segmented-control-item"
+                  role="radio"
+                  aria-checked="false"
+                  data-segmented-control-value="required"
+                >
+                  Required
+                </button>
+              </div>
+              <input type="hidden" class="segmented-control-value" name="ssl-mode" value="off" />
+            </div>
+          </div>
 
-              <label class="field conn-opt-ssl" for="conn-ssl-mode">
-                <span class="field-label">SSL</span>
-                <select id="conn-ssl-mode" class="input conn-select" autocomplete="off">
-                  <option value="off">Off</option>
-                  <option value="preferred">Preferred</option>
-                  <option value="required">Required</option>
-                </select>
-              </label>
+          <div class="field combobox conn-opt-charset" id="charset-combobox" data-combobox-allow-custom data-combobox-grid>
+            <label class="field-label" for="conn-charset">Character set</label>
+            <div class="combobox-control">
+              <input
+                type="text"
+                id="conn-charset"
+                class="input combobox-input"
+                role="combobox"
+                aria-expanded="false"
+                aria-autocomplete="list"
+                aria-controls="conn-charset-list"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="e.g. utf8mb4"
+              />
+              <ul id="conn-charset-list" class="combobox-list hidden" role="listbox" hidden>
+                <li role="presentation">
+                  <button type="button" class="combobox-option" role="option" data-value="utf8mb4">utf8mb4</button>
+                </li>
+                <li role="presentation">
+                  <button type="button" class="combobox-option" role="option" data-value="utf8">utf8</button>
+                </li>
+                <li role="presentation">
+                  <button type="button" class="combobox-option" role="option" data-value="utf8mb3">utf8mb3</button>
+                </li>
+                <li role="presentation">
+                  <button type="button" class="combobox-option" role="option" data-value="latin1">latin1</button>
+                </li>
+                <li role="presentation">
+                  <button type="button" class="combobox-option" role="option" data-value="ascii">ascii</button>
+                </li>
+                <li role="presentation">
+                  <button type="button" class="combobox-option" role="option" data-value="binary">binary</button>
+                </li>
+                <li role="presentation">
+                  <button type="button" class="combobox-option" role="option" data-value="utf16">utf16</button>
+                </li>
+                <li role="presentation">
+                  <button type="button" class="combobox-option" role="option" data-value="utf32">utf32</button>
+                </li>
+                <li role="presentation">
+                  <button type="button" class="combobox-option" role="option" data-value="ucs2">ucs2</button>
+                </li>
+                <li role="presentation">
+                  <button type="button" class="combobox-option" role="option" data-value="gbk">gbk</button>
+                </li>
+                <li role="presentation">
+                  <button type="button" class="combobox-option" role="option" data-value="big5">big5</button>
+                </li>
+                <li role="presentation">
+                  <button type="button" class="combobox-option" role="option" data-value="sjis">sjis</button>
+                </li>
+                <li role="presentation">
+                  <button type="button" class="combobox-option" role="option" data-value="cp1251">cp1251</button>
+                </li>
+                <li role="presentation">
+                  <button type="button" class="combobox-option" role="option" data-value="cp1252">cp1252</button>
+                </li>
+              </ul>
+            </div>
+            <input type="hidden" class="combobox-value" name="charset" value="" />
+          </div>
 
-              <label class="field conn-opt-charset" for="conn-charset">
-                <span class="field-label">Character set (MySQL / MariaDB ODBC)</span>
-                <input type="text" id="conn-charset" class="input" autocomplete="off" spellcheck="false" placeholder="e.g. utf8" />
-              </label>
-
-              <label class="field conn-opt-sqlite-memory" for="conn-sqlite-memory">
-                <span class="field-label">In-memory database (SQLite)</span>
-                <span class="conn-checkbox-wrap">
-                  <input type="checkbox" id="conn-sqlite-memory" class="conn-checkbox" autocomplete="off" />
-                  <span>Use <code>:memory:</code> instead of a file path</span>
-                </span>
-              </label>
-
-              <label class="field conn-opt-sqlite-version" for="conn-sqlite-version">
-                <span class="field-label">SQLite version</span>
-                <select id="conn-sqlite-version" class="input conn-select" autocomplete="off">
-                  <option value="3">3</option>
-                  <option value="2">2</option>
-                </select>
-              </label>
+          <div class="field conn-opt-sqlite-version">
+            <span class="field-label" id="conn-sqlite-version-label">SQLite version</span>
+            <div
+              id="sqlite-version-toggle"
+              class="segmented-control"
+              data-segmented-control-default="3"
+            >
+              <div
+                class="segmented-control-list"
+                role="radiogroup"
+                aria-labelledby="conn-sqlite-version-label"
+              >
+                <button
+                  type="button"
+                  class="segmented-control-item"
+                  role="radio"
+                  aria-checked="true"
+                  data-segmented-control-value="3"
+                >
+                  3
+                </button>
+                <button
+                  type="button"
+                  class="segmented-control-item"
+                  role="radio"
+                  aria-checked="false"
+                  data-segmented-control-value="2"
+                >
+                  2
+                </button>
+              </div>
+              <input type="hidden" class="segmented-control-value" name="sqlite-version" value="3" />
             </div>
           </div>
         </div>
@@ -236,8 +506,20 @@
       </section>
 
       <section class="content-section" aria-labelledby="output-heading">
-        <h2 id="output-heading" class="section-heading">Connection string</h2>
+        <h2 id="output-heading" class="section-title">Connection string</h2>
         <div class="conn-output-wrap">
+          <button
+            type="button"
+            id="conn-copy"
+            class="btn btn-primary conn-copy-btn btn-label-flash"
+            aria-label="Copy"
+          >
+            <span data-icon="copy" data-icon-class="btn-icon-svg" aria-hidden="true"></span>
+            <span class="btn-label-flash__label">Copy</span>
+          </button>
+          <p id="conn-output-incomplete" class="field-hint conn-output-incomplete hidden" hidden>
+            Required fields are empty — the string may not work until you fill them in.
+          </p>
           <textarea
             id="conn-output"
             class="textarea conn-output"
@@ -246,17 +528,122 @@
             aria-label="Generated connection string"
             spellcheck="false"
           ></textarea>
-          <button type="button" id="conn-copy" class="btn btn-primary conn-copy-btn">
-            <span data-icon="copy" data-icon-class="btn-icon-svg" aria-hidden="true"></span>
-            <span id="conn-copy-label">Copy</span>
-          </button>
-        </div>
-        <div class="banner banner-info" role="note">
-          <span class="banner-icon" data-icon="info" data-icon-class="banner-icon-svg" aria-hidden="true"></span>
-          <span class="banner-body">Generated locally in your browser. Nothing is sent to a server.</span>
         </div>
       </section>
     </main>
+
+    <div
+      id="reset-dialog"
+      class="modal hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="reset-dialog-title"
+      hidden
+    >
+      <div class="modal-backdrop" data-dialog-close></div>
+      <div class="modal-panel">
+        <div class="modal-header">
+          <h2 id="reset-dialog-title">Reset all?</h2>
+          <button type="button" class="modal-close" aria-label="Close" data-dialog-close>×</button>
+        </div>
+        <div class="modal-body">
+          <p>
+            Clear every field and restore the default database and API selection.
+            This cannot be undone.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <div class="modal-footer-actions">
+            <button type="button" class="btn" data-dialog-close>Cancel</button>
+            <button
+              type="button"
+              class="btn btn-danger"
+              id="conn-reset-confirm"
+              data-dialog-default
+            >
+              Reset all
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="about-dialog"
+      class="modal hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="about-dialog-title"
+      hidden
+    >
+      <div class="modal-backdrop" data-dialog-close></div>
+      <div class="modal-panel">
+        <div class="modal-header">
+          <h2 id="about-dialog-title">What does this do?</h2>
+          <button type="button" class="modal-close" aria-label="Close" data-dialog-close>×</button>
+        </div>
+        <div class="modal-body">
+          <p>
+            Build connection strings for common databases.
+            <br />
+            Nothing is sent to a server — everything runs in your browser.
+          </p>
+          <p>
+            Pick a database and connection format, fill in the fields that apply, and copy a ready-made
+            connection string.
+          </p>
+          <p>
+            You can find many more configurations and details on
+            <a href="https://www.connectionstrings.com/" target="_blank" rel="noopener noreferrer"
+              >ConnectionStrings.com</a
+            >.
+          </p>
+          <div class="about-extra-content" data-about-extra>
+            <div
+              class="about-extra-block hidden"
+              data-about-stage
+              data-about-next-label="Uhh…"
+              hidden
+            >
+              <p>
+                Just fill in the form with your server, database, and other details. 
+                The app puts everything together and gives you a ready-to-use connection string to copy. 
+                No need to remember tricky formats.
+              </p>
+       
+            </div>
+            <div
+              class="about-extra-block hidden"
+              data-about-stage
+              data-about-next-label="I don't get it"
+              hidden
+            >
+              <p>
+                Need connect. Is difficult. How enter? Do form. Is done. Nice.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn" data-about-confused>Huh?</button>
+          <a
+            class="btn hidden"
+            data-about-final
+            href="https://pbskids.org/games/play/andys-art-studio/59500"
+            target="_blank"
+            rel="noopener noreferrer"
+            hidden
+            >I don't get it</a
+          >
+          <div class="modal-footer-actions">
+            <button type="button" class="btn" id="about-guided-tour">Guided tour</button>
+            <button type="button" class="btn btn-primary" data-dialog-close data-dialog-default>
+              Got it
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <script type="module" src="app/main.js"></script>
   </body>

@@ -1,4 +1,4 @@
-/** @typedef {"mssql" | "azuresql" | "oracle" | "db2" | "mysql" | "mariadb" | "postgresql" | "sqlite" | "redshift" | "firebird" | "teradata"} DatabaseId */
+/** @typedef {"mssql" | "azuresql" | "oracle" | "db2" | "as400" | "mysql" | "mariadb" | "postgresql" | "sqlite" | "redshift" | "firebird" | "teradata"} DatabaseId */
 /** @typedef {"odbc" | "oledb" | "adonet"} ConnectionFormat */
 
 /** @type {Record<DatabaseId, { label: string, drivers: ConnectionFormat[] }>} */
@@ -7,6 +7,7 @@ export const DATABASES = {
   azuresql: { label: "Azure SQL Database", drivers: ["odbc", "oledb", "adonet"] },
   oracle: { label: "Oracle", drivers: ["odbc", "oledb", "adonet"] },
   db2: { label: "IBM DB2", drivers: ["odbc", "oledb", "adonet"] },
+  as400: { label: "IBM AS/400 (IBM i)", drivers: ["odbc", "oledb", "adonet"] },
   mysql: { label: "MySQL", drivers: ["odbc", "adonet"] },
   mariadb: { label: "MariaDB", drivers: ["odbc", "adonet"] },
   postgresql: { label: "PostgreSQL", drivers: ["odbc", "adonet"] },
@@ -16,20 +17,16 @@ export const DATABASES = {
   teradata: { label: "Teradata", drivers: ["odbc", "oledb", "adonet"] },
 };
 
-/** @type {DatabaseId[]} */
-export const DATABASE_IDS = [
-  "mssql",
-  "azuresql",
-  "oracle",
-  "db2",
-  "mysql",
-  "mariadb",
-  "postgresql",
-  "sqlite",
-  "redshift",
-  "firebird",
-  "teradata",
-];
+/** @type {DatabaseId[]} — sorted alphabetically by display label */
+export const DATABASE_IDS = /** @type {DatabaseId[]} */ (
+  Object.keys(DATABASES).sort((a, b) =>
+    DATABASES[/** @type {DatabaseId} */ (a)].label.localeCompare(
+      DATABASES[/** @type {DatabaseId} */ (b)].label,
+      "en",
+      { sensitivity: "base" }
+    )
+  )
+);
 
 /** @type {Record<ConnectionFormat, string>} */
 export const FORMAT_LABELS = {

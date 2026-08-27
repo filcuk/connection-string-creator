@@ -30,6 +30,7 @@ export const SHARED_FIELDS = [
     label: "Password",
     type: "password",
     placeholder: "Optional",
+    hint: "All information remains safely in your browser.",
   },
 ];
 
@@ -54,12 +55,24 @@ export const FIELD_OVERRIDES = {
   oracle: {
     database: {
       label: "Service name or SID",
-      hint: "Used in the connection descriptor (e.g. ORCL).",
+      hint: "Choose Service name or SID under advanced options.",
       placeholder: "ORCL",
     },
   },
   db2: {
     host: { placeholder: "hostname or IP address" },
+  },
+  as400: {
+    host: {
+      label: "System name",
+      placeholder: "MY_SYSTEM_NAME",
+      hint: "System / Data Source name from IBM i Access / Operations Navigator.",
+    },
+    database: {
+      label: "Library / default collection",
+      placeholder: "MY_LIBRARY",
+      hint: "Used as Default Collection for OLE DB (optional).",
+    },
   },
   mysql: {
     host: { placeholder: "localhost" },
@@ -74,7 +87,6 @@ export const FIELD_OVERRIDES = {
     database: {
       label: "Database file path",
       placeholder: "C:\\data\\mydb.db or /var/data/mydb.db",
-      hint: "Path to the .db file, or use in-memory in Advanced options.",
     },
   },
   redshift: {
@@ -94,7 +106,7 @@ export const FIELD_OVERRIDES = {
   },
   teradata: {
     host: { label: "Data source / DBC name", placeholder: "myserver" },
-    database: { hint: "Used for the Teradata OLE DB provider (optional for ODBC/ADO.NET)." },
+    database: { hint: "Optional for ODBC/ADO.NET." },
   },
 };
 
@@ -108,4 +120,60 @@ export function getFieldsForDatabase(db) {
     ...field,
     ...overrides[field.id],
   }));
+}
+
+/**
+ * Field ids that must be non-empty for the current connection mode.
+ *
+ * @param {{
+ *   db: DatabaseId,
+ *   format: import("./types.js").ConnectionFormat,
+ *   useDsn: boolean,
+ *   sqliteInMemory: boolean,
+ *   db2ConnectMode: "hostname" | "dbalias",
+ * }} ctx
+ * @returns {string[]}
+ */
+export function getRequiredFieldIds(ctx) {
+  /** @type {string[]} */
+  const ids = [];
+
+  if (ctx.useDsn) {
+    ids.push("dsn");
+    return ids;
+  }
+
+  if (ctx.format !== "adonet") {
+    ids.push("driver");
+  }
+
+  if (ctx.db === "sqlite") {
+    if (!ctx.sqliteInMemory) ids.push("database");
+    return ids;
+  }
+
+  if (ctx.db === "db2" && ctx.db2ConnectMode === "dbalias") {
+    ids.push("dbAlias");
+    return ids;
+  }
+
+  if (ctx.db === "firebird") {
+    ids.push("database");
+    return ids;
+  }
+
+  if (ctx.db === "as400") {
+    ids.push("host");
+    return ids;
+  }
+
+  ids.push("host", "port");
+
+  if (ctx.db === "teradata") {
+    if (ctx.format === "oledb") ids.push("database");
+  } else {
+    ids.push("database");
+  }
+
+  return ids;
 }

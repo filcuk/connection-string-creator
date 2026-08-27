@@ -1,0 +1,314 @@
+/* Connection string generator (fork-owned; sync will not overwrite) */
+
+/* Framework has no pageNav:false yet — hide chrome in the fork. */
+#page-nav {
+  display: none !important;
+}
+
+:root {
+  /* Light accent; --accent-fg token default #ffffff passes WCAG AA (5.06:1). */
+  --accent: #0474b3;
+}
+
+:root[data-theme="dark"] {
+  /* Dark accent; --accent-fg token default #0d1117 passes WCAG AA (8.83:1). */
+  --accent: #38bdf8;
+}
+
+.conn-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.conn-reset-btn {
+  margin-left: auto;
+}
+
+.dropdown-chevron {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+.btn.dropdown-trigger {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.btn.dropdown-trigger > [data-icon] {
+  margin-left: auto;
+}
+
+.conn-form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.conn-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.conn-server-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: start;
+}
+
+.conn-host-field {
+  flex: 2 1 14rem;
+  min-width: 0;
+}
+
+.conn-port-field {
+  flex: 0 0 auto;
+}
+
+.conn-database-field {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+
+@media (min-width: 640px) {
+  .conn-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .conn-server-row,
+  .conn-auth-field,
+  .conn-opt-oracle-os {
+    grid-column: 1 / -1;
+  }
+}
+
+.conn-auth-field .segmented-control,
+.conn-opt-sqlite-version .segmented-control,
+.conn-opt-ssl .segmented-control,
+.conn-opt-oracle-id .segmented-control {
+  align-self: flex-start;
+}
+
+.conn-form-grid .field {
+  max-width: none;
+}
+
+.conn-port-field .input {
+  width: calc(8ch + 1.5rem);
+  max-width: 100%;
+}
+
+.conn-output-incomplete {
+  margin: 0;
+  color: var(--banner-error-text);
+}
+
+.conn-form input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.conn-form input[type="number"]::-webkit-outer-spin-button,
+.conn-form input[type="number"]::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.field-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.conn-password-wrap {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.conn-password-wrap .input {
+  padding-right: 2.75rem;
+}
+
+.conn-password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.25rem;
+  transform: translateY(-50%);
+}
+
+.conn-select {
+  cursor: pointer;
+}
+
+.conn-opt-oracle-mode .conn-select {
+  width: calc(36ch + 2.5rem);
+  max-width: 100%;
+}
+
+.conn-output-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.conn-output {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  min-height: 5rem;
+  resize: vertical;
+}
+
+.conn-copy-btn {
+  align-self: flex-start;
+}
+
+.conn-copy-btn [data-icon] {
+  display: inline-flex;
+  flex-shrink: 0;
+  line-height: 0;
+}
+
+.conn-copy-btn .btn-icon-svg {
+  width: 1rem;
+  height: 1rem;
+  display: block;
+}
+
+.conn-advanced-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.conn-encrypt-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .conn-advanced-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.conn-advanced-grid .field {
+  max-width: none;
+}
+
+.conn-opt-schema {
+  justify-self: start;
+  width: max-content;
+  max-width: 100%;
+}
+
+.conn-opt-charset {
+  justify-self: start;
+  width: calc(12ch + 2.5rem);
+  max-width: 100%;
+}
+
+.field.is-required > .field-label::after,
+.is-required > .field-label::after {
+  content: " *";
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.conn-form .input[aria-invalid="true"],
+.conn-form .btn.dropdown-trigger[aria-invalid="true"] {
+  border-color: var(--banner-error-border);
+}
+
+.conn-form .input[aria-invalid="true"]:focus,
+.conn-form .btn.dropdown-trigger[aria-invalid="true"]:focus-visible {
+  outline-color: var(--banner-error-border);
+}
+
+.conn-advanced-grid .checkbox {
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 400;
+  align-items: flex-start;
+}
+
+.conn-form-grid .conn-opt-oracle-os .checkbox {
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 400;
+  align-items: flex-start;
+}
+
+.conn-advanced-grid .checkbox code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+}
+
+.conn-driver-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.conn-dsn-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1.25rem;
+}
+
+.conn-dsn-row .checkbox {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 400;
+  padding-bottom: 0.45rem;
+}
+
+.conn-dsn-row:not(:has(.conn-source-name:not([hidden]))) .checkbox {
+  padding-bottom: 0;
+}
+
+.conn-source-name {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.conn-dsn-row .input {
+  width: 100%;
+  max-width: none;
+}
+
+@media (min-width: 640px) {
+  .conn-source-row {
+    grid-column: 1 / -1;
+  }
+}
+
+.conn-driver-row .dropdown {
+  flex: 0 0 auto;
+}
+
+.conn-driver-row .input {
+  flex: 1 1 12rem;
+  min-width: 0;
+  width: auto;
+}
+
+@media (min-width: 640px) {
+  .conn-driver-field {
+    grid-column: 1 / -1;
+  }
+}

@@ -6,28 +6,29 @@ import { formatDriverName, joinConnectionString, serverWithColonPort, timeoutPai
  */
 export function buildDb2(values, format) {
   const timeout = timeoutPair(values, format);
-  const schemaOdbc = values.schema ? { CurrentSchema: values.schema } : {};
+  const schemaCurrent = values.schema ? { CurrentSchema: values.schema } : {};
   const schemaOledb = values.schema ? { "Default Schema": values.schema } : {};
   const packageCol = values.packageCollection ? { "Package Collection": values.packageCollection } : {};
+  const useAlias = values.db2ConnectMode === "dbalias" && format !== "oledb";
 
-  if (values.db2ConnectMode === "dbalias") {
+  if (useAlias) {
     if (format === "odbc") {
       return withDsnOrPairs(values, {
         Driver: formatDriverName(values.driverName),
         DBALIAS: values.dbAlias,
         Uid: values.username,
         Pwd: values.password,
+        ...schemaCurrent,
         ...timeout,
       });
     }
-    if (format === "adonet") {
-      return joinConnectionString({
-        Server: values.dbAlias,
-        UID: values.username,
-        PWD: values.password,
-        ...timeout,
-      });
-    }
+    return joinConnectionString({
+      Server: values.dbAlias,
+      UID: values.username,
+      PWD: values.password,
+      ...schemaCurrent,
+      ...timeout,
+    });
   }
 
   if (format === "odbc") {
@@ -39,7 +40,7 @@ export function buildDb2(values, format) {
       Protocol: "TCPIP",
       Uid: values.username,
       Pwd: values.password,
-      ...schemaOdbc,
+      ...schemaCurrent,
       ...timeout,
     });
   }
@@ -49,7 +50,7 @@ export function buildDb2(values, format) {
       Provider: values.driverName,
       "Network Transport Library": "TCPIP",
       "Network Address": values.host,
-      Port: values.port,
+      "Network Port": values.port,
       "Initial Catalog": values.database,
       "User ID": values.username,
       Password: values.password,
@@ -64,6 +65,7 @@ export function buildDb2(values, format) {
     Database: values.database,
     UID: values.username,
     PWD: values.password,
+    ...schemaCurrent,
     ...timeout,
   });
 }

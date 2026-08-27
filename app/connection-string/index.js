@@ -1,3 +1,4 @@
+import { buildAs400 } from "./builders/as400.js";
 import { buildAzuresql } from "./builders/azuresql.js";
 import { buildDb2 } from "./builders/db2.js";
 import { buildFirebird } from "./builders/firebird.js";
@@ -26,6 +27,7 @@ import { isSupported } from "./types.js";
  * @property {"sql" | "windows"} authMode
  * @property {boolean} osAuth
  * @property {boolean} encrypt
+ * @property {boolean} trustServerCertificate
  * @property {string} connectionTimeout
  * @property {boolean} useDsn
  * @property {string} dsn
@@ -33,6 +35,7 @@ import { isSupported } from "./types.js";
  * @property {"hostname" | "dbalias"} db2ConnectMode
  * @property {string} dbAlias
  * @property {"easyconnect" | "tns"} oracleConnectMode
+ * @property {"service" | "sid"} oracleIdentifierType
  * @property {string} packageCollection
  * @property {"off" | "preferred" | "required"} sslMode
  * @property {string} charset
@@ -60,6 +63,8 @@ export function buildConnectionString({ db, driver, values }) {
       return buildOracle(v, driver);
     case "db2":
       return buildDb2(v, driver);
+    case "as400":
+      return buildAs400(v, driver);
     case "mysql":
       return buildMysql(v, driver);
     case "mariadb":
@@ -94,4 +99,4 @@ export {
   getDefaultPort,
   getDriverPresets,
 } from "./defaults.js";
-export { getFieldsForDatabase } from "./fields.js";
+export { getFieldsForDatabase, getRequiredFieldIds } from "./fields.js";

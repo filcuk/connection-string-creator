@@ -1,6 +1,8 @@
 import {
+  azureEncryptPair,
   formatDriverName,
   joinConnectionString,
+  mssqlTrustCertPair,
   serverWithPort,
   timeoutPair,
   withDsnOrPairs,
@@ -11,7 +13,7 @@ import {
  * @param {string} port
  */
 function azureServer(host, port) {
-  const server = serverWithPort(host, port);
+  const server = serverWithPort(host, port, { defaultPort: "1433" });
   if (!server) return "";
   if (server.startsWith("tcp:")) return server;
   return `tcp:${server}`;
@@ -24,7 +26,8 @@ function azureServer(host, port) {
 export function buildAzuresql(values, format) {
   const server = azureServer(values.host, values.port);
   const timeout = timeoutPair(values, format);
-  const encryptOn = values.encrypt !== false;
+  const encrypt = azureEncryptPair(values, format);
+  const trust = mssqlTrustCertPair(values, format);
 
   if (format === "odbc") {
     return withDsnOrPairs(values, {
@@ -33,7 +36,8 @@ export function buildAzuresql(values, format) {
       Database: values.database,
       Uid: values.username,
       Pwd: values.password,
-      ...(encryptOn ? { Encrypt: "yes" } : {}),
+      ...encrypt,
+      ...trust,
       ...timeout,
     });
   }
@@ -45,7 +49,8 @@ export function buildAzuresql(values, format) {
       "Initial Catalog": values.database,
       UID: values.username,
       PWD: values.password,
-      ...(encryptOn ? { "Use Encryption for Data": "true" } : {}),
+      ...encrypt,
+      ...trust,
       ...timeout,
     });
   }
@@ -55,8 +60,9 @@ export function buildAzuresql(values, format) {
     Database: values.database,
     "User ID": values.username,
     Password: values.password,
-    "Trusted_Connection": "False",
-    ...(encryptOn ? { Encrypt: "True" } : {}),
+    Trusted_Connection: "False",
+    ...encrypt,
+    ...trust,
     ...timeout,
   });
 }

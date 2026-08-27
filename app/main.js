@@ -1,35 +1,158 @@
-import { initShell } from "./shell.js";
-import { initDropdown } from "./dropdown.js";
-import { initExpand } from "./expand.js";
-import { initIcons, mountIcon } from "./icons.js";
-import { setHidden } from "./dom.js";
+import { initShell } from "./shell/shell.js";
+import { initDropdown } from "./components/dropdown.js";
+import { initToggleButton } from "./components/toggle-button.js";
+import { initSegmentedControl } from "./components/segmented-control.js";
+import { initDurationInput, parseDurationValue } from "./components/duration-input.js";
+import { initCombobox } from "./components/combobox.js";
+import { initAboutDialog } from "./components/about-dialog.js";
+import { initDialog } from "./components/dialog.js";
+import { initPopover } from "./components/popover.js";
+import { initTutorial } from "./components/tutorial.js";
+import { setHidden } from "./utils/dom.js";
+import { copyText } from "./utils/clipboard.js";
+import {
+  flashButtonLabel,
+  prepareButtonLabelFlash,
+  setButtonLabelFlash,
+} from "./utils/button-label.js";
 import {
   buildConnectionString,
   DATABASES,
   DATABASE_IDS,
+  DRIVER_PRESETS,
   encryptDefaultOn,
   FORMAT_LABELS,
   getDefaultDriver,
   getDefaultPort,
   getDriverPresets,
   getFieldsForDatabase,
+  getRequiredFieldIds,
   isSupported,
 } from "./connection-string/index.js";
 
-initShell();
+initShell({ headingLinks: false });
+
+const ABOUT_HINT_STORAGE_KEY = "connection-string-generator-about-hint-seen";
+/** Persisted form inputs (never includes password). */
+const FORM_STORAGE_KEY = "connection-string-generator-form";
+/**
+ * Skip localStorage writes until boot finishes, and while resetting / restoring.
+ * (Component inits can emit onChange → updateOutput before restore runs.)
+ */
+let persistReady = false;
+const aboutOpenBtn = document.getElementById("about-open-btn");
+
+/** @type {ReturnType<typeof initPopover> | null} */
+let aboutHintPopover = null;
+
+function hasSeenAboutHint() {
+  try {
+    return localStorage.getItem(ABOUT_HINT_STORAGE_KEY) === "1";
+  } catch {
+    return true;
+  }
+}
+
+function markAboutHintSeen() {
+  try {
+    localStorage.setItem(ABOUT_HINT_STORAGE_KEY, "1");
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+function dismissAboutHint() {
+  if (!aboutHintPopover) return;
+  const popover = aboutHintPopover;
+  aboutHintPopover = null;
+  markAboutHintSeen();
+  popover.destroy();
+}
+
+const overviewTour = initTutorial({
+  id: "connection-string-overview",
+  steps: [
+    {
+      target: "#conn-toolbar",
+      title: "Configuration",
+      body: "Choose the database engine and the API style.",
+      position: "bottom",
+    },
+    {
+      target: "#conn-form",
+      title: "Connection details",
+      body: "Enter host, credentials, driver, and options. Required empty fields are marked; unused options stay hidden.",
+      position: "top",
+    },
+    {
+      target: ".conn-output-wrap",
+      title: "Generated string",
+      body: "The connection string updates as you type. Use Copy when you are ready to paste it into your app or config.",
+      position: "top",
+    },
+  ],
+});
+
+const aboutDialog = initAboutDialog({
+  dialogEl: document.getElementById("about-dialog"),
+  openTriggers: [aboutOpenBtn],
+  onOpen: () => dismissAboutHint(),
+});
+
+document.getElementById("about-guided-tour")?.addEventListener("click", (event) => {
+  event.preventDefault();
+  dismissAboutHint();
+  aboutDialog?.closeDialog();
+  overviewTour?.start();
+});
+
+if (aboutOpenBtn instanceof HTMLElement && !hasSeenAboutHint()) {
+  aboutHintPopover = initPopover({
+    anchor: aboutOpenBtn,
+    body: "Check here for more info and a guided tour!",
+    position: "right",
+    dismissible: false,
+    trapFocus: false,
+    actions: [
+      {
+        label: "Got it",
+        className: "btn btn-primary",
+        closeOnClick: false,
+        onClick: () => dismissAboutHint(),
+      },
+    ],
+    onClose: () => {
+      if (!aboutHintPopover) return;
+      const popover = aboutHintPopover;
+      aboutHintPopover = null;
+      markAboutHintSeen();
+      queueMicrotask(() => popover.destroy());
+    },
+  });
+  window.requestAnimationFrame(() => {
+    aboutHintPopover?.open();
+  });
+}
 
 /** @type {import("./connection-string/types.js").DatabaseId} */
 let currentDb = "mssql";
 /** @type {import("./connection-string/types.js").ConnectionFormat} */
 let currentFormat = "odbc";
+/** @type {"sql" | "windows"} */
+let currentAuthMode = "sql";
+
+const CUSTOM_DRIVER_LABEL = "Custom…";
 
 const dbDropdownLabel = document.getElementById("db-dropdown-label");
 const dbDropdownMenu = document.getElementById("db-dropdown-menu");
+const authToggleEl = document.getElementById("auth-toggle");
+const driverDropdownLabel = document.getElementById("driver-dropdown-label");
+const driverDropdownMenu = document.getElementById("driver-dropdown-menu");
 const formatToggleEl = document.getElementById("driver-toggle");
 const outputEl = document.getElementById("conn-output");
 const copyBtn = document.getElementById("conn-copy");
-const copyLabel = document.getElementById("conn-copy-label");
-const driverPresetEl = document.getElementById("conn-driver-preset");
+const resetBtn = document.getElementById("conn-reset");
+const resetConfirmBtn = document.getElementById("conn-reset-confirm");
 const driverCustomEl = document.getElementById("conn-driver-custom");
 const driverLabelEl = document.getElementById("conn-driver-label");
 const driverFieldEl = document.querySelector(".conn-driver-field");
@@ -50,31 +173,95 @@ const fieldInputs = {
 const advancedInputs = {
   useDsn: document.getElementById("conn-use-dsn"),
   dsn: document.getElementById("conn-dsn"),
-  timeout: document.getElementById("conn-timeout"),
-  authMode: document.getElementById("conn-auth-mode"),
   encrypt: document.getElementById("conn-encrypt"),
+  trustServerCertificate: document.getElementById("conn-trust-cert"),
   oracleMode: document.getElementById("conn-oracle-mode"),
   osAuth: document.getElementById("conn-os-auth"),
-  db2Mode: document.getElementById("conn-db2-mode"),
+  useDb2Alias: document.getElementById("conn-use-db2-alias"),
   dbAlias: document.getElementById("conn-db-alias"),
   schema: document.getElementById("conn-schema"),
   packageCollection: document.getElementById("conn-package-collection"),
-  sslMode: document.getElementById("conn-ssl-mode"),
-  charset: document.getElementById("conn-charset"),
   sqliteMemory: document.getElementById("conn-sqlite-memory"),
-  sqliteVersion: document.getElementById("conn-sqlite-version"),
 };
+
+const sqliteVersionToggleEl = document.getElementById("sqlite-version-toggle");
+const sslToggleEl = document.getElementById("ssl-toggle");
+const oracleIdToggleEl = document.getElementById("oracle-id-toggle");
+const charsetInputEl = document.getElementById("conn-charset");
+const charsetComboboxEl = document.getElementById("charset-combobox");
+const timeoutDurationEl = document.getElementById("conn-timeout");
+const outputIncompleteEl = document.getElementById("conn-output-incomplete");
+
+/** @type {ReturnType<typeof initCombobox> | null} */
+let charsetCombobox = null;
+/** @type {ReturnType<typeof initDurationInput> | null} */
+let timeoutDuration = null;
+
+/** True when username was auto-filled as SYSDBA for Firebird. */
+let firebirdUserAutoFilled = false;
 
 const hostFieldEl = document.querySelector('label[for="conn-host"]');
 const portFieldEl = document.querySelector('label[for="conn-port"]');
 const databaseFieldEl = document.querySelector('label[for="conn-database"]');
+const serverRowEl = document.querySelector(".conn-server-row");
 
 const CUSTOM_DRIVER_VALUE = "__custom__";
-let copyResetTimer = 0;
+/** Selected driver preset value, or `CUSTOM_DRIVER_VALUE`. */
+let currentDriverValue = "";
 /** Full connection string (unmasked) — used for copy. */
 let connectionStringForCopy = "";
-/** @type {ReturnType<typeof initExpand> | null} */
-let advancedExpand = null;
+/** @type {ReturnType<typeof initToggleButton> | null} */
+let passwordToggleBtn = null;
+/** @type {ReturnType<typeof initSegmentedControl> | null} */
+let formatToggle = null;
+/** @type {ReturnType<typeof initSegmentedControl> | null} */
+let authToggle = null;
+/** @type {ReturnType<typeof initSegmentedControl> | null} */
+let sqliteVersionToggle = null;
+/** @type {ReturnType<typeof initSegmentedControl> | null} */
+let sslToggle = null;
+/** @type {ReturnType<typeof initSegmentedControl> | null} */
+let oracleIdToggle = null;
+
+/** Convert duration control (H:MM:SS) to timeout seconds for builders; omit when zero. */
+function readConnectionTimeout() {
+  const hidden = document.querySelector("#conn-timeout .duration-input-value");
+  const parts = parseDurationValue(hidden?.value, { showSeconds: true });
+  if (parts) {
+    const total = parts.hours * 3600 + parts.minutes * 60 + parts.seconds;
+    return total > 0 ? String(total) : "";
+  }
+  const seconds = timeoutDuration?.getSeconds() ?? 0;
+  return seconds > 0 ? String(seconds) : "";
+}
+
+/** Write timeout seconds into the duration control (zero clears). */
+function setConnectionTimeoutSeconds(seconds) {
+  const n = Number(seconds);
+  timeoutDuration?.setSeconds(Number.isFinite(n) && n > 0 ? Math.trunc(n) : 0);
+}
+
+function driverPresetLabel(preset) {
+  return preset.label ?? preset.value;
+}
+
+function allDriverMeasureLabels() {
+  const labels = new Set([CUSTOM_DRIVER_LABEL]);
+  for (const byFormat of Object.values(DRIVER_PRESETS)) {
+    for (const presets of Object.values(byFormat)) {
+      for (const preset of presets) {
+        labels.add(driverPresetLabel(preset));
+      }
+    }
+  }
+  return [...labels];
+}
+
+function setDriverSelection(value, label, { showCustom = false } = {}) {
+  currentDriverValue = value;
+  driverDropdownLabel.textContent = label;
+  setHidden(driverCustomEl, !showCustom);
+}
 
 function buildDbMenu() {
   dbDropdownMenu.replaceChildren(
@@ -95,23 +282,55 @@ function buildDbMenu() {
 
 function renderFormatToggle() {
   const formats = DATABASES[currentDb].drivers;
-  formatToggleEl.replaceChildren(
-    ...formats.map((format) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "btn driver-toggle-btn";
-      button.dataset.driver = format;
-      button.textContent = FORMAT_LABELS[format];
-      button.setAttribute("aria-pressed", String(format === currentFormat));
-      return button;
-    })
-  );
 
   if (!formats.includes(currentFormat)) {
     currentFormat = formats[0];
   }
 
-  setHidden(formatToggleEl, formats.length <= 1);
+  formatToggle = null;
+  formatToggleEl.replaceChildren();
+
+  if (formats.length <= 1) {
+    setHidden(formatToggleEl, true);
+    return;
+  }
+
+  setHidden(formatToggleEl, false);
+
+  const list = document.createElement("div");
+  list.className = "segmented-control-list";
+  list.setAttribute("role", "radiogroup");
+  list.setAttribute("aria-label", "Connection format");
+
+  for (const format of formats) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "segmented-control-item";
+    button.setAttribute("role", "radio");
+    button.setAttribute("aria-checked", String(format === currentFormat));
+    button.dataset.segmentedControlValue = format;
+    button.textContent = FORMAT_LABELS[format];
+    list.append(button);
+  }
+
+  const hidden = document.createElement("input");
+  hidden.type = "hidden";
+  hidden.className = "segmented-control-value";
+  hidden.name = "connection-format";
+  hidden.value = currentFormat;
+
+  formatToggleEl.append(list, hidden);
+  formatToggleEl.dataset.segmentedControlDefault = currentFormat;
+
+  formatToggle = initSegmentedControl(formatToggleEl, {
+    defaultValue: currentFormat,
+    onChange: ({ value, source }) => {
+      if (source === "init") return;
+      if (value && value !== currentFormat) {
+        applyFormatChange(/** @type {import("./connection-string/types.js").ConnectionFormat} */ (value));
+      }
+    },
+  });
 }
 
 function updateFieldLabels() {
@@ -122,7 +341,15 @@ function updateFieldLabels() {
     const input = fieldInputs[field.id];
 
     if (labelEl) labelEl.textContent = field.label;
-    if (input && field.placeholder) input.placeholder = field.placeholder;
+
+    if (input) {
+      if (field.id === "port") {
+        const defaultPort = getDefaultPort(currentDb);
+        input.placeholder = defaultPort || field.placeholder || "";
+      } else if (field.placeholder) {
+        input.placeholder = field.placeholder;
+      }
+    }
 
     if (hintEl) {
       if (field.hint) {
@@ -136,7 +363,10 @@ function updateFieldLabels() {
   }
 }
 
-function renderDriverPresets() {
+/**
+ * @param {{ preserveSelection?: boolean }} [options]
+ */
+function renderDriverPresets({ preserveSelection = false } = {}) {
   const presets = getDriverPresets(currentDb, currentFormat);
   const isOledb = currentFormat === "oledb";
   const hideDriver = currentFormat === "adonet";
@@ -144,33 +374,59 @@ function renderDriverPresets() {
   driverLabelEl.textContent = isOledb ? "Provider" : "Driver";
   setHidden(driverFieldEl, hideDriver);
 
-  if (hideDriver) return;
+  if (hideDriver) {
+    currentDriverValue = "";
+    return;
+  }
 
-  driverPresetEl.replaceChildren(
-    ...presets.map(({ value, label }) => {
-      const option = document.createElement("option");
-      option.value = value;
-      option.textContent = label ?? value;
-      return option;
+  driverDropdownMenu.replaceChildren(
+    ...presets.map((preset) => {
+      const item = document.createElement("li");
+      item.setAttribute("role", "none");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "dropdown-menu-item";
+      button.role = "menuitem";
+      button.dataset.value = preset.value;
+      button.textContent = driverPresetLabel(preset);
+      item.append(button);
+      return item;
     }),
     (() => {
-      const option = document.createElement("option");
-      option.value = CUSTOM_DRIVER_VALUE;
-      option.textContent = "Custom…";
-      return option;
+      const item = document.createElement("li");
+      item.setAttribute("role", "none");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "dropdown-menu-item";
+      button.role = "menuitem";
+      button.dataset.value = CUSTOM_DRIVER_VALUE;
+      button.textContent = CUSTOM_DRIVER_LABEL;
+      item.append(button);
+      return item;
     })()
   );
 
+  if (preserveSelection) {
+    if (currentDriverValue === CUSTOM_DRIVER_VALUE) {
+      setDriverSelection(CUSTOM_DRIVER_VALUE, CUSTOM_DRIVER_LABEL, { showCustom: true });
+      return;
+    }
+    const kept = presets.find((preset) => preset.value === currentDriverValue);
+    if (kept) {
+      setDriverSelection(kept.value, driverPresetLabel(kept));
+      return;
+    }
+  }
+
   const defaultDriver = getDefaultDriver(currentDb, currentFormat);
-  driverPresetEl.value = defaultDriver;
+  const defaultPreset = presets.find((preset) => preset.value === defaultDriver);
   driverCustomEl.value = defaultDriver;
-  setHidden(driverCustomEl, true);
-  driverCustomEl.hidden = true;
+  setDriverSelection(defaultDriver, defaultPreset ? driverPresetLabel(defaultPreset) : defaultDriver);
 }
 
 function readFormValues() {
-  const useCustomDriver = driverPresetEl.value === CUSTOM_DRIVER_VALUE;
-  const driverName = useCustomDriver ? driverCustomEl.value.trim() : driverPresetEl.value;
+  const useCustomDriver = currentDriverValue === CUSTOM_DRIVER_VALUE;
+  const driverName = useCustomDriver ? driverCustomEl.value.trim() : currentDriverValue;
 
   return {
     host: fieldInputs.host.value.trim(),
@@ -179,74 +435,256 @@ function readFormValues() {
     username: fieldInputs.username.value.trim(),
     password: fieldInputs.password.value,
     driverName,
-    authMode: /** @type {"sql" | "windows"} */ (advancedInputs.authMode.value),
+    authMode: currentAuthMode,
     osAuth: advancedInputs.osAuth.checked,
     encrypt: advancedInputs.encrypt.checked,
-    connectionTimeout: advancedInputs.timeout.value.trim(),
-    useDsn: advancedInputs.useDsn.checked,
+    trustServerCertificate: advancedInputs.trustServerCertificate.checked,
+    connectionTimeout: readConnectionTimeout(),
+    useDsn: advancedInputs.useDsn.checked && currentFormat === "odbc",
     dsn: advancedInputs.dsn.value.trim(),
     schema: advancedInputs.schema.value.trim(),
-    db2ConnectMode: /** @type {"hostname" | "dbalias"} */ (advancedInputs.db2Mode.value),
+    db2ConnectMode:
+      currentDb === "db2" &&
+      currentFormat !== "oledb" &&
+      advancedInputs.useDb2Alias.checked
+        ? "dbalias"
+        : "hostname",
     dbAlias: advancedInputs.dbAlias.value.trim(),
     oracleConnectMode: /** @type {"easyconnect" | "tns"} */ (advancedInputs.oracleMode.value),
+    oracleIdentifierType: /** @type {"service" | "sid"} */ (oracleIdToggle?.getValue() || "service"),
     packageCollection: advancedInputs.packageCollection.value.trim(),
-    sslMode: /** @type {"off" | "preferred" | "required"} */ (advancedInputs.sslMode.value),
-    charset: advancedInputs.charset.value.trim(),
+    sslMode: /** @type {"off" | "preferred" | "required"} */ (sslToggle?.getValue() || "off"),
+    charset: charsetInputEl?.value.trim() || charsetCombobox?.getValue()?.trim() || "",
     sqliteInMemory: advancedInputs.sqliteMemory.checked,
-    sqliteVersion: /** @type {"2" | "3"} */ (advancedInputs.sqliteVersion.value),
+    sqliteVersion: /** @type {"2" | "3"} */ (sqliteVersionToggle?.getValue() || "3"),
   };
 }
 
 function updateFieldVisibility() {
   const useDsn = advancedInputs.useDsn.checked && currentFormat === "odbc";
-  const db2Alias = currentDb === "db2" && advancedInputs.db2Mode.value === "dbalias";
+  const db2Alias =
+    currentDb === "db2" &&
+    currentFormat !== "oledb" &&
+    advancedInputs.useDb2Alias.checked;
   const sqliteMemory = currentDb === "sqlite" && advancedInputs.sqliteMemory.checked;
   const hideCredentials =
-    (currentDb === "mssql" && advancedInputs.authMode.value === "windows") ||
+    (currentDb === "mssql" && currentAuthMode === "windows") ||
     (currentDb === "oracle" && advancedInputs.osAuth.checked);
 
   setHidden(hostFieldEl, useDsn || db2Alias || currentDb === "sqlite" || sqliteMemory);
-  setHidden(portFieldEl, useDsn || db2Alias || currentDb === "sqlite" || sqliteMemory);
+  setHidden(
+    portFieldEl,
+    useDsn || db2Alias || currentDb === "sqlite" || sqliteMemory || currentDb === "as400"
+  );
   setHidden(databaseFieldEl, useDsn || db2Alias || sqliteMemory);
+  setHidden(
+    serverRowEl,
+    Boolean(
+      hostFieldEl?.hasAttribute("hidden") &&
+        portFieldEl?.hasAttribute("hidden") &&
+        databaseFieldEl?.hasAttribute("hidden")
+    )
+  );
   setHidden(driverFieldEl, useDsn || currentFormat === "adonet");
   setHidden(usernameFieldEl, hideCredentials || currentDb === "sqlite");
   setHidden(passwordFieldEl, hideCredentials);
 
-  setHidden(document.querySelector(".conn-opt-dsn"), currentFormat !== "odbc");
-  setHidden(document.querySelector(".conn-opt-dsn-name"), currentFormat !== "odbc" || !advancedInputs.useDsn.checked);
+  const showUseDsn = currentFormat === "odbc" && !sqliteMemory && !db2Alias;
+  const showUseDb2Alias =
+    currentDb === "db2" && currentFormat !== "oledb" && !useDsn && !sqliteMemory;
+  const showSqliteMemory = currentDb === "sqlite" && !useDsn && !db2Alias;
+  setHidden(document.querySelector(".conn-opt-dsn"), !showUseDsn);
+  setHidden(document.querySelector(".conn-opt-db2-alias"), !showUseDb2Alias);
+  setHidden(document.querySelector(".conn-opt-sqlite-memory"), !showSqliteMemory);
+  setHidden(document.querySelector(".conn-dsn-name"), !useDsn);
+  setHidden(document.querySelector(".conn-db-alias-name"), !db2Alias);
+  setHidden(
+    document.querySelector(".conn-source-row"),
+    !showUseDsn && !showUseDb2Alias && !showSqliteMemory && !useDsn && !db2Alias
+  );
 
+  setHidden(document.querySelector(".conn-opt-timeout"), useDsn);
   setHidden(document.querySelector(".conn-opt-mssql-auth"), currentDb !== "mssql");
+
+  const showEncrypt =
+    !useDsn &&
+    (currentDb === "mssql" ||
+      currentDb === "azuresql" ||
+      (currentDb === "as400" && currentFormat === "odbc"));
+  const showTrustCert = !useDsn && (currentDb === "mssql" || currentDb === "azuresql");
+  setHidden(document.querySelector(".conn-opt-mssql-encrypt"), !showEncrypt);
+  setHidden(document.querySelector(".conn-opt-trust-cert"), !showTrustCert);
+  setHidden(document.querySelector(".conn-encrypt-stack"), !showEncrypt && !showTrustCert);
+
+  const encryptHeading = document.getElementById("conn-encrypt-heading");
+  const encryptText = document.getElementById("conn-encrypt-text");
+  if (currentDb === "as400") {
+    if (encryptHeading) encryptHeading.textContent = "SSL";
+    if (encryptText) encryptText.textContent = "Use SSL";
+  } else {
+    if (encryptHeading) encryptHeading.textContent = "Encrypt connection";
+    if (encryptText) encryptText.textContent = "Use encrypted connection";
+  }
+
   setHidden(
-    document.querySelector(".conn-opt-mssql-encrypt"),
-    currentDb !== "mssql" && currentDb !== "azuresql"
+    document.querySelector(".conn-opt-oracle-mode"),
+    useDsn || currentDb !== "oracle"
+  );
+  setHidden(
+    document.querySelector(".conn-opt-oracle-id"),
+    useDsn || currentDb !== "oracle"
+  );
+  setHidden(
+    document.querySelector(".conn-opt-oracle-os"),
+    useDsn || currentDb !== "oracle"
   );
 
-  setHidden(document.querySelector(".conn-opt-oracle-mode"), currentDb !== "oracle");
-  setHidden(document.querySelector(".conn-opt-oracle-os"), currentDb !== "oracle");
-
-  setHidden(
-    document.querySelector(".conn-opt-db2-mode"),
-    currentDb !== "db2" || currentFormat === "adonet"
-  );
-  setHidden(
-    document.querySelector(".conn-opt-db-alias"),
-    currentDb !== "db2" || advancedInputs.db2Mode.value !== "dbalias" || currentFormat === "adonet"
-  );
-  setHidden(document.querySelector(".conn-opt-schema"), currentDb !== "db2");
+  setHidden(document.querySelector(".conn-opt-schema"), useDsn || currentDb !== "db2");
   setHidden(
     document.querySelector(".conn-opt-package"),
-    currentDb !== "db2" || currentFormat !== "oledb"
+    useDsn || currentDb !== "db2" || currentFormat !== "oledb"
   );
 
   const showSsl = ["mysql", "mariadb", "redshift", "postgresql"].includes(currentDb);
-  setHidden(document.querySelector(".conn-opt-ssl"), !showSsl);
+  setHidden(document.querySelector(".conn-opt-ssl"), useDsn || !showSsl);
+  const showCharset = ["mysql", "mariadb", "firebird"].includes(currentDb);
+  setHidden(document.querySelector(".conn-opt-charset"), useDsn || !showCharset);
+
   setHidden(
-    document.querySelector(".conn-opt-charset"),
-    (currentDb !== "mysql" && currentDb !== "mariadb") || currentFormat !== "odbc"
+    document.querySelector(".conn-opt-sqlite-version"),
+    useDsn || currentDb !== "sqlite" || currentFormat !== "adonet"
   );
 
-  setHidden(document.querySelector(".conn-opt-sqlite-memory"), currentDb !== "sqlite");
-  setHidden(document.querySelector(".conn-opt-sqlite-version"), currentDb !== "sqlite" || currentFormat !== "adonet");
+  syncFormSections();
+  syncSchemaFieldWidth();
+  syncRequiredFields();
+}
+
+/**
+ * Mark required controls and flag empty ones as invalid (red border).
+ */
+function syncRequiredFields() {
+  const useDsn = advancedInputs.useDsn.checked && currentFormat === "odbc";
+  const required = new Set(
+    getRequiredFieldIds({
+      db: currentDb,
+      format: currentFormat,
+      useDsn,
+      sqliteInMemory: currentDb === "sqlite" && advancedInputs.sqliteMemory.checked,
+      db2ConnectMode: /** @type {"hostname" | "dbalias"} */ (
+        currentDb === "db2" &&
+        currentFormat !== "oledb" &&
+        advancedInputs.useDb2Alias.checked
+          ? "dbalias"
+          : "hostname"
+      ),
+    })
+  );
+
+  /** @type {Record<string, { control: HTMLElement | null, value: string, field?: Element | null }>} */
+  const targets = {
+    host: {
+      control: fieldInputs.host,
+      value: fieldInputs.host?.value.trim() ?? "",
+      field: hostFieldEl,
+    },
+    port: {
+      control: fieldInputs.port,
+      value: fieldInputs.port?.value.trim() ?? "",
+      field: portFieldEl,
+    },
+    database: {
+      control: fieldInputs.database,
+      value: fieldInputs.database?.value.trim() ?? "",
+      field: databaseFieldEl,
+    },
+    dsn: {
+      control: advancedInputs.dsn,
+      value: advancedInputs.dsn?.value.trim() ?? "",
+      field: document.querySelector(".conn-dsn-name"),
+    },
+    dbAlias: {
+      control: advancedInputs.dbAlias,
+      value: advancedInputs.dbAlias?.value.trim() ?? "",
+      field: document.querySelector(".conn-db-alias-name"),
+    },
+    driver: {
+      control:
+        currentDriverValue === CUSTOM_DRIVER_VALUE
+          ? driverCustomEl
+          : document.getElementById("driver-dropdown-trigger"),
+      value:
+        currentDriverValue === CUSTOM_DRIVER_VALUE
+          ? driverCustomEl?.value.trim() ?? ""
+          : currentDriverValue.trim(),
+      field: driverFieldEl,
+    },
+  };
+
+  for (const [id, target] of Object.entries(targets)) {
+    const isRequired = required.has(id);
+    const control = target.control;
+    const field = target.field;
+    const empty = !target.value;
+
+    field?.classList.toggle("is-required", isRequired);
+    if (control instanceof HTMLInputElement || control instanceof HTMLSelectElement) {
+      control.toggleAttribute("required", isRequired);
+      if (isRequired && empty) control.setAttribute("aria-invalid", "true");
+      else control.removeAttribute("aria-invalid");
+    } else if (control instanceof HTMLElement) {
+      // Dropdown trigger (driver presets)
+      if (isRequired && empty) control.setAttribute("aria-invalid", "true");
+      else control.removeAttribute("aria-invalid");
+    }
+  }
+}
+
+/** Keep DB2 schema input the same width as the database field input. */
+let lastDatabaseInputWidth = 0;
+
+function syncSchemaFieldWidth() {
+  const schemaInput = document.querySelector(".conn-opt-schema .input");
+  if (!(schemaInput instanceof HTMLElement)) return;
+
+  const databaseInput = fieldInputs.database;
+  if (databaseInput instanceof HTMLElement && databaseInput.offsetWidth > 0) {
+    lastDatabaseInputWidth = databaseInput.offsetWidth;
+  }
+
+  if (lastDatabaseInputWidth > 0) {
+    schemaInput.style.width = `${lastDatabaseInputWidth}px`;
+    schemaInput.style.maxWidth = "100%";
+  }
+}
+
+function sectionHasVisibleFields(section) {
+  return [...section.querySelectorAll(".field")].some(
+    (field) => !field.hasAttribute("hidden")
+  );
+}
+
+function syncFormSections() {
+  const sections = [...document.querySelectorAll("#conn-form > .conn-form-section")];
+  sections.forEach((section) => {
+    setHidden(section, !sectionHasVisibleFields(section));
+  });
+
+  document.querySelectorAll("#conn-form > .panel-divider").forEach((divider) => {
+    setHidden(divider, true);
+  });
+
+  const visible = sections.filter((section) => !section.hasAttribute("hidden"));
+  for (let i = 0; i < visible.length - 1; i++) {
+    let el = visible[i].nextElementSibling;
+    while (el && el !== visible[i + 1]) {
+      if (el.classList.contains("panel-divider")) {
+        setHidden(el, false);
+        break;
+      }
+      el = el.nextElementSibling;
+    }
+  }
 }
 
 function isPasswordHidden() {
@@ -257,12 +695,173 @@ function maskPassword(value) {
   return "•".repeat(value.length);
 }
 
+/**
+ * Snapshot of form state safe to keep in localStorage.
+ * Password is never included — do not add it here.
+ * @returns {Record<string, unknown>}
+ */
+function collectPersistableState() {
+  const values = readFormValues();
+  return {
+    db: currentDb,
+    format: currentFormat,
+    authMode: currentAuthMode,
+    host: values.host,
+    port: values.port,
+    database: values.database,
+    username: values.username,
+    driverValue: currentDriverValue,
+    driverCustom: driverCustomEl.value,
+    useDsn: advancedInputs.useDsn.checked,
+    dsn: values.dsn,
+    encrypt: values.encrypt,
+    trustServerCertificate: values.trustServerCertificate,
+    connectionTimeout: values.connectionTimeout,
+    osAuth: values.osAuth,
+    oracleConnectMode: values.oracleConnectMode,
+    oracleIdentifierType: values.oracleIdentifierType,
+    db2ConnectMode: values.db2ConnectMode,
+    dbAlias: values.dbAlias,
+    schema: values.schema,
+    packageCollection: values.packageCollection,
+    sslMode: values.sslMode,
+    charset: values.charset,
+    sqliteInMemory: values.sqliteInMemory,
+    sqliteVersion: values.sqliteVersion,
+  };
+}
+
+function savePersistedForm() {
+  if (!persistReady) return;
+  try {
+    const state = collectPersistableState();
+    // Hard guarantee: never write a password key, even if added by mistake later.
+    delete state.password;
+    localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+/**
+ * @returns {Record<string, unknown> | null}
+ */
+function loadPersistedForm() {
+  try {
+    const raw = localStorage.getItem(FORM_STORAGE_KEY);
+    if (!raw) return null;
+    const state = JSON.parse(raw);
+    if (!state || typeof state !== "object" || Array.isArray(state)) return null;
+    // Discard any password that should never have been stored.
+    delete state.password;
+    return state;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Apply saved inputs. Password is always left empty.
+ * @param {Record<string, unknown>} state
+ * @returns {boolean}
+ */
+function applyPersistedForm(state) {
+  const db = state.db;
+  if (typeof db !== "string" || !DATABASE_IDS.includes(/** @type {import("./connection-string/types.js").DatabaseId} */ (db))) {
+    return false;
+  }
+
+  currentDb = /** @type {import("./connection-string/types.js").DatabaseId} */ (db);
+  dbDropdownLabel.textContent = DATABASES[currentDb].label;
+
+  const formats = DATABASES[currentDb].drivers;
+  const format = state.format;
+  currentFormat =
+    typeof format === "string" && formats.includes(/** @type {import("./connection-string/types.js").ConnectionFormat} */ (format))
+      ? /** @type {import("./connection-string/types.js").ConnectionFormat} */ (format)
+      : formats[0];
+
+  renderFormatToggle();
+  updateFieldLabels();
+
+  fieldInputs.host.value = typeof state.host === "string" ? state.host : "";
+  fieldInputs.port.value =
+    typeof state.port === "string" && state.port
+      ? state.port
+      : getDefaultPort(currentDb);
+  fieldInputs.database.value = typeof state.database === "string" ? state.database : "";
+  fieldInputs.username.value = typeof state.username === "string" ? state.username : "";
+  fieldInputs.password.value = "";
+  clearPasswordField();
+
+  currentAuthMode = state.authMode === "windows" ? "windows" : "sql";
+  authToggle?.selectValue(currentAuthMode, { emit: false });
+
+  advancedInputs.useDsn.checked = Boolean(state.useDsn) && currentFormat === "odbc";
+  advancedInputs.dsn.value = typeof state.dsn === "string" ? state.dsn : "";
+  advancedInputs.encrypt.checked = Boolean(state.encrypt);
+  advancedInputs.trustServerCertificate.checked = Boolean(state.trustServerCertificate);
+  advancedInputs.oracleMode.value =
+    state.oracleConnectMode === "tns" ? "tns" : "easyconnect";
+  const oracleId = state.oracleIdentifierType === "sid" ? "sid" : "service";
+  oracleIdToggle?.selectValue(oracleId, { emit: false });
+  advancedInputs.osAuth.checked = Boolean(state.osAuth);
+  advancedInputs.useDb2Alias.checked =
+    Boolean(state.db2ConnectMode === "dbalias") && currentFormat !== "oledb";
+  advancedInputs.dbAlias.value = typeof state.dbAlias === "string" ? state.dbAlias : "";
+  advancedInputs.schema.value = typeof state.schema === "string" ? state.schema : "";
+  advancedInputs.packageCollection.value =
+    typeof state.packageCollection === "string" ? state.packageCollection : "";
+  advancedInputs.sqliteMemory.checked = Boolean(state.sqliteInMemory);
+
+  const timeoutSeconds =
+    typeof state.connectionTimeout === "string" && state.connectionTimeout
+      ? Number(state.connectionTimeout)
+      : 0;
+  setConnectionTimeoutSeconds(Number.isFinite(timeoutSeconds) ? timeoutSeconds : 0);
+
+  const sslMode =
+    state.sslMode === "preferred" || state.sslMode === "required" ? state.sslMode : "off";
+  sslToggle?.selectValue(sslMode, { emit: false });
+
+  charsetCombobox?.setValue(typeof state.charset === "string" ? state.charset : "");
+
+  const sqliteVersion = state.sqliteVersion === "2" ? "2" : "3";
+  sqliteVersionToggle?.selectValue(sqliteVersion, { emit: false });
+
+  renderDriverPresets();
+
+  const driverValue = typeof state.driverValue === "string" ? state.driverValue : "";
+  const driverCustom = typeof state.driverCustom === "string" ? state.driverCustom : "";
+  if (currentFormat === "adonet") {
+    currentDriverValue = "";
+  } else if (driverValue === CUSTOM_DRIVER_VALUE) {
+    driverCustomEl.value = driverCustom || getDefaultDriver(currentDb, currentFormat);
+    setDriverSelection(CUSTOM_DRIVER_VALUE, CUSTOM_DRIVER_LABEL, { showCustom: true });
+  } else if (driverValue) {
+    const presets = getDriverPresets(currentDb, currentFormat);
+    const preset = presets.find((entry) => entry.value === driverValue);
+    if (preset) {
+      setDriverSelection(preset.value, driverPresetLabel(preset));
+    } else {
+      driverCustomEl.value = driverValue;
+      setDriverSelection(CUSTOM_DRIVER_VALUE, CUSTOM_DRIVER_LABEL, { showCustom: true });
+    }
+  }
+
+  updateOutput();
+  return true;
+}
+
 function updateOutput() {
   updateFieldVisibility();
 
   if (!isSupported(currentDb, currentFormat)) {
     connectionStringForCopy = "";
     outputEl.value = "";
+    syncCopyButtonState();
+    syncResetButtonState();
+    savePersistedForm();
     return;
   }
 
@@ -283,9 +882,90 @@ function updateOutput() {
     driver: currentFormat,
     values: displayValues,
   });
+  syncCopyButtonState();
+  syncResetButtonState();
+  savePersistedForm();
+}
+
+function syncCopyButtonState() {
+  const hasOutput = Boolean(connectionStringForCopy);
+  copyBtn.disabled = !hasOutput;
+
+  const incomplete = hasOutput && hasRequiredGaps();
+  setHidden(outputIncompleteEl, !incomplete);
+  if (incomplete) {
+    copyBtn.setAttribute("aria-label", "Copy incomplete connection string");
+  } else {
+    copyBtn.setAttribute("aria-label", "Copy");
+  }
+}
+
+/** True when any currently required field is empty. */
+function hasRequiredGaps() {
+  const useDsn = advancedInputs.useDsn.checked && currentFormat === "odbc";
+  const required = getRequiredFieldIds({
+    db: currentDb,
+    format: currentFormat,
+    useDsn,
+    sqliteInMemory: currentDb === "sqlite" && advancedInputs.sqliteMemory.checked,
+    db2ConnectMode: /** @type {"hostname" | "dbalias"} */ (
+      currentDb === "db2" &&
+      currentFormat !== "oledb" &&
+      advancedInputs.useDb2Alias.checked
+        ? "dbalias"
+        : "hostname"
+    ),
+  });
+
+  for (const id of required) {
+    if (id === "host" && !fieldInputs.host?.value.trim()) return true;
+    if (id === "port" && !fieldInputs.port?.value.trim()) return true;
+    if (id === "database" && !fieldInputs.database?.value.trim()) return true;
+    if (id === "dsn" && !advancedInputs.dsn?.value.trim()) return true;
+    if (id === "dbAlias" && !advancedInputs.dbAlias?.value.trim()) return true;
+    if (id === "driver") {
+      const driverValue =
+        currentDriverValue === CUSTOM_DRIVER_VALUE
+          ? driverCustomEl?.value.trim() ?? ""
+          : currentDriverValue.trim();
+      if (!driverValue) return true;
+    }
+  }
+  return false;
+}
+
+/** True when configuration and fields match the post-reset defaults. */
+function isFormBlank() {
+  const values = readFormValues();
+  const defaultDriver = getDefaultDriver("mssql", "odbc");
+
+  if (currentDb !== "mssql" || currentFormat !== "odbc") return false;
+  if (currentAuthMode !== "sql") return false;
+  if (values.host || values.database || values.username || values.password) return false;
+  if (values.port !== getDefaultPort("mssql")) return false;
+  if (currentDriverValue === CUSTOM_DRIVER_VALUE) return false;
+  if (currentDriverValue !== defaultDriver) return false;
+  if (values.useDsn || values.dsn) return false;
+  if (values.encrypt || values.trustServerCertificate || values.osAuth || values.sqliteInMemory) {
+    return false;
+  }
+  if (values.connectionTimeout) return false;
+  if (values.dbAlias || values.schema || values.packageCollection || values.charset) return false;
+  if (values.sslMode !== "off") return false;
+  if (values.sqliteVersion !== "3") return false;
+  if (values.oracleConnectMode !== "easyconnect") return false;
+  if (values.oracleIdentifierType !== "service") return false;
+  if (values.db2ConnectMode !== "hostname") return false;
+  return true;
+}
+
+function syncResetButtonState() {
+  if (!(resetBtn instanceof HTMLButtonElement)) return;
+  resetBtn.disabled = isFormBlank();
 }
 
 function applyDatabaseChange(db, { resetPort = true } = {}) {
+  const previousDb = currentDb;
   currentDb = db;
   dbDropdownLabel.textContent = DATABASES[db].label;
 
@@ -297,24 +977,40 @@ function applyDatabaseChange(db, { resetPort = true } = {}) {
     fieldInputs.port.value = port;
   }
 
-  advancedInputs.encrypt.checked = encryptDefaultOn(db);
-  if (db === "firebird" && !fieldInputs.username.value) {
-    fieldInputs.username.value = "SYSDBA";
+  // Only apply encrypt default when the new engine’s default differs (e.g. Azure on).
+  if (encryptDefaultOn(db) !== encryptDefaultOn(previousDb)) {
+    advancedInputs.encrypt.checked = encryptDefaultOn(db);
   }
 
-  renderDriverPresets();
+  if (db === "firebird" && previousDb !== "firebird" && !fieldInputs.username.value.trim()) {
+    fieldInputs.username.value = "SYSDBA";
+    firebirdUserAutoFilled = true;
+  } else if (
+    previousDb === "firebird" &&
+    db !== "firebird" &&
+    firebirdUserAutoFilled &&
+    fieldInputs.username.value === "SYSDBA"
+  ) {
+    fieldInputs.username.value = "";
+    firebirdUserAutoFilled = false;
+  } else if (db !== "firebird") {
+    firebirdUserAutoFilled = false;
+  }
+
+  renderDriverPresets({ preserveSelection: true });
   updateOutput();
 }
 
 function applyFormatChange(format) {
   currentFormat = format;
-  formatToggleEl.querySelectorAll(".driver-toggle-btn").forEach((btn) => {
-    btn.setAttribute("aria-pressed", String(btn.dataset.driver === format));
-  });
   if (format !== "odbc") {
     advancedInputs.useDsn.checked = false;
   }
-  renderDriverPresets();
+  // DB2 OLE DB has no DBALIAS path — clear alias mode.
+  if (format === "oledb" && currentDb === "db2") {
+    advancedInputs.useDb2Alias.checked = false;
+  }
+  renderDriverPresets({ preserveSelection: true });
   updateOutput();
 }
 
@@ -322,83 +1018,62 @@ async function copyOutput() {
   const text = connectionStringForCopy;
   if (!text) return;
 
-  let copied = false;
-  if (navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(text);
-      copied = true;
-    } catch {
-      copied = false;
-    }
-  }
-
-  if (!copied) {
-    outputEl.value = text;
-    outputEl.focus();
-    outputEl.select();
-    copied = document.execCommand("copy");
-    updateOutput();
-  }
-
-  if (copied) {
-    copyLabel.textContent = "Copied!";
-    window.clearTimeout(copyResetTimer);
-    copyResetTimer = window.setTimeout(() => {
-      copyLabel.textContent = "Copy";
-    }, 2000);
-  }
+  const copied = await copyText(text);
+  flashButtonLabel(copyBtn, copied, {
+    reset: () => {
+      copyBtn.setAttribute("aria-label", "Copy");
+      setButtonLabelFlash(copyBtn, "Copy");
+    },
+  });
 }
 
-function togglePasswordVisibility() {
-  const visible = passwordInput.type === "password";
-  passwordInput.type = visible ? "text" : "password";
-  passwordToggle.setAttribute("aria-pressed", String(visible));
-  passwordToggle.setAttribute("aria-label", visible ? "Hide password" : "Show password");
-  mountIcon(passwordToggle, visible ? "visibility-off" : "visibility", {
-    className: "btn-icon-svg",
-  });
+function applyPasswordVisibility(pressed) {
+  passwordInput.type = pressed ? "text" : "password";
   updateOutput();
 }
 
-function resetPasswordVisibility() {
-  passwordInput.type = "password";
-  passwordToggle.setAttribute("aria-pressed", "false");
-  passwordToggle.setAttribute("aria-label", "Show password");
-  mountIcon(passwordToggle, "visibility", { className: "btn-icon-svg" });
+/** Clear password and hide it without triggering a persist cycle. */
+function clearPasswordField() {
+  if (passwordInput) passwordInput.value = "";
+  passwordToggleBtn?.setPressed(false, { emit: false });
+  if (passwordInput) passwordInput.type = "password";
 }
 
-/** Reset all configuration and connection fields to defaults (no persisted state). */
+/** Reset all configuration and connection fields to defaults. */
 function resetConnectionForm() {
   currentDb = "mssql";
   currentFormat = "odbc";
   dbDropdownLabel.textContent = DATABASES.mssql.label;
 
   for (const input of Object.values(fieldInputs)) {
-    input.value = "";
+    if (input) input.value = "";
   }
-  resetPasswordVisibility();
+  clearPasswordField();
 
+  currentDriverValue = "";
+  driverDropdownLabel.textContent = "";
   driverCustomEl.value = "";
   setHidden(driverCustomEl, true);
-  driverCustomEl.hidden = true;
 
   advancedInputs.useDsn.checked = false;
   advancedInputs.dsn.value = "";
-  advancedInputs.timeout.value = "";
-  advancedInputs.authMode.value = "sql";
+  currentAuthMode = "sql";
+  authToggle?.selectValue("sql", { emit: false });
   advancedInputs.encrypt.checked = false;
+  advancedInputs.trustServerCertificate.checked = false;
   advancedInputs.oracleMode.value = "easyconnect";
+  oracleIdToggle?.selectValue("service", { emit: false });
   advancedInputs.osAuth.checked = false;
-  advancedInputs.db2Mode.value = "hostname";
+  advancedInputs.useDb2Alias.checked = false;
   advancedInputs.dbAlias.value = "";
   advancedInputs.schema.value = "";
   advancedInputs.packageCollection.value = "";
-  advancedInputs.sslMode.value = "off";
-  advancedInputs.charset.value = "";
   advancedInputs.sqliteMemory.checked = false;
-  advancedInputs.sqliteVersion.value = "3";
-
-  advancedExpand?.close();
+  firebirdUserAutoFilled = false;
+  charsetCombobox?.setValue("");
+  setConnectionTimeoutSeconds(0);
+  sslToggle?.selectValue("off", { emit: false });
+  sqliteVersionToggle?.selectValue("3", { emit: false });
 
   renderFormatToggle();
   updateFieldLabels();
@@ -409,14 +1084,34 @@ function resetConnectionForm() {
 }
 
 function bootConnectionForm() {
-  resetConnectionForm();
+  // Snapshot storage before hydrate; saves stay disabled until hydrate finishes
+  // so init-time onChange (e.g. password toggle) cannot overwrite it.
+  const saved = loadPersistedForm();
+
+  const hydrate = () => {
+    persistReady = false;
+    resetConnectionForm();
+    if (saved) applyPersistedForm(saved);
+    clearPasswordField();
+    updateOutput();
+    persistReady = true;
+    savePersistedForm();
+  };
+
+  hydrate();
   // Browsers may restore form controls after the first paint (reload / bfcache).
   requestAnimationFrame(() => {
-    resetConnectionForm();
+    requestAnimationFrame(hydrate);
   });
 }
 
 buildDbMenu();
+
+const dbDropdownTrigger = document.getElementById("db-dropdown-trigger");
+prepareButtonLabelFlash(dbDropdownTrigger, {
+  idle: DATABASES.mssql.label,
+  measureLabels: DATABASE_IDS.map((id) => DATABASES[id].label),
+});
 
 initDropdown(document.getElementById("db-dropdown"), {
   onSelect: ({ value }) => {
@@ -428,26 +1123,90 @@ initDropdown(document.getElementById("db-dropdown"), {
   },
 });
 
-advancedExpand = initExpand(document.getElementById("conn-advanced"));
-
-formatToggleEl.addEventListener("click", (event) => {
-  const button = event.target.closest(".driver-toggle-btn");
-  if (!button) return;
-  const format = /** @type {import("./connection-string/types.js").ConnectionFormat} */ (
-    button.dataset.driver
-  );
-  if (format && format !== currentFormat) {
-    applyFormatChange(format);
-  }
+authToggle = initSegmentedControl(authToggleEl, {
+  defaultValue: "sql",
+  onChange: ({ value, source }) => {
+    if (source === "init") return;
+    if (!value || value === currentAuthMode) return;
+    currentAuthMode = /** @type {"sql" | "windows"} */ (value);
+    updateOutput();
+  },
 });
 
-driverPresetEl.addEventListener("change", () => {
-  const isCustom = driverPresetEl.value === CUSTOM_DRIVER_VALUE;
-  setHidden(driverCustomEl, !isCustom);
-  if (isCustom && !driverCustomEl.value) {
-    driverCustomEl.value = getDefaultDriver(currentDb, currentFormat);
-  }
-  updateOutput();
+charsetCombobox = initCombobox(charsetComboboxEl, {
+  allowCustom: true,
+  onChange: () => {
+    updateOutput();
+  },
+});
+
+timeoutDuration = initDurationInput(timeoutDurationEl, {
+  onChange: ({ source }) => {
+    if (source === "init") return;
+    updateOutput();
+  },
+  onInput: () => {
+    updateOutput();
+  },
+});
+
+sqliteVersionToggle = initSegmentedControl(sqliteVersionToggleEl, {
+  defaultValue: "3",
+  onChange: ({ source }) => {
+    if (source === "init") return;
+    updateOutput();
+  },
+});
+
+sslToggle = initSegmentedControl(sslToggleEl, {
+  defaultValue: "off",
+  onChange: ({ source }) => {
+    if (source === "init") return;
+    updateOutput();
+  },
+});
+
+oracleIdToggle = initSegmentedControl(oracleIdToggleEl, {
+  defaultValue: "service",
+  onChange: ({ source }) => {
+    if (source === "init") return;
+    updateOutput();
+  },
+});
+
+const driverDropdownTrigger = document.getElementById("driver-dropdown-trigger");
+prepareButtonLabelFlash(driverDropdownTrigger, {
+  idle: getDefaultDriver("mssql", "odbc"),
+  measureLabels: allDriverMeasureLabels(),
+});
+
+initDropdown(document.getElementById("driver-dropdown"), {
+  onSelect: ({ value, label }) => {
+    if (!value) return;
+    const isCustom = value === CUSTOM_DRIVER_VALUE;
+    if (isCustom && !driverCustomEl.value) {
+      driverCustomEl.value = getDefaultDriver(currentDb, currentFormat);
+    }
+    setDriverSelection(value, label || CUSTOM_DRIVER_LABEL, { showCustom: isCustom });
+    updateOutput();
+  },
+});
+
+passwordToggleBtn = initToggleButton(passwordToggle, {
+  alwaysActive: true,
+  iconOff: "visibility",
+  iconOn: "visibility-off",
+  ariaLabelOff: "Show password",
+  ariaLabelOn: "Hide password",
+  iconClass: "btn-icon-svg",
+  onChange: ({ pressed, source }) => {
+    if (source === "init") return;
+    applyPasswordVisibility(pressed);
+  },
+});
+
+fieldInputs.username?.addEventListener("input", () => {
+  if (currentDb === "firebird") firebirdUserAutoFilled = false;
 });
 
 driverCustomEl.addEventListener("input", updateOutput);
@@ -458,30 +1217,58 @@ document.getElementById("conn-app").addEventListener("input", (event) => {
 });
 
 document.getElementById("conn-app").addEventListener("change", (event) => {
+  if (event.target === advancedInputs.useDsn && advancedInputs.useDsn.checked) {
+    advancedInputs.sqliteMemory.checked = false;
+    advancedInputs.useDb2Alias.checked = false;
+  }
+  if (event.target === advancedInputs.useDb2Alias && advancedInputs.useDb2Alias.checked) {
+    advancedInputs.useDsn.checked = false;
+    advancedInputs.sqliteMemory.checked = false;
+  }
+  if (event.target === advancedInputs.sqliteMemory && advancedInputs.sqliteMemory.checked) {
+    advancedInputs.useDsn.checked = false;
+    advancedInputs.useDb2Alias.checked = false;
+  }
   if (
     event.target === advancedInputs.useDsn ||
-    event.target === advancedInputs.authMode ||
+    event.target === advancedInputs.useDb2Alias ||
     event.target === advancedInputs.encrypt ||
+    event.target === advancedInputs.trustServerCertificate ||
     event.target === advancedInputs.osAuth ||
-    event.target === advancedInputs.db2Mode ||
     event.target === advancedInputs.oracleMode ||
-    event.target === advancedInputs.sslMode ||
-    event.target === advancedInputs.sqliteMemory ||
-    event.target === advancedInputs.sqliteVersion
+    event.target === advancedInputs.sqliteMemory
   ) {
     updateOutput();
   }
 });
 
 copyBtn.addEventListener("click", copyOutput);
-passwordToggle.addEventListener("click", togglePasswordVisibility);
+
+const resetDialog = initDialog({
+  dialogEl: document.getElementById("reset-dialog"),
+  openTriggers: [resetBtn],
+});
+
+resetConfirmBtn?.addEventListener("click", () => {
+  resetConnectionForm();
+  resetDialog?.closeDialog();
+});
+
+prepareButtonLabelFlash(copyBtn, {
+  idle: "Copy",
+  success: "Copied",
+  fail: "Failed",
+});
 
 document.getElementById("conn-form")?.addEventListener("submit", (event) => {
   event.preventDefault();
 });
 
-initIcons(document.getElementById("conn-app"));
 bootConnectionForm();
+
+window.addEventListener("resize", () => {
+  syncSchemaFieldWidth();
+});
 
 window.addEventListener("pageshow", (event) => {
   if (event.persisted) {

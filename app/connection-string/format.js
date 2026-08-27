@@ -1,10 +1,11 @@
 /**
- * Quote a connection string value when it contains semicolons, braces, or spaces.
+ * Quote a connection string value when it contains special characters.
+ * Double any embedded quotes per ADO/ODBC rules.
  * @param {string} value
  */
 export function quoteValue(value) {
   if (!value) return value;
-  if (/[;{}=\s]/.test(value)) {
+  if (/[;{}=\s"]/.test(value)) {
     return `"${value.replace(/"/g, '""')}"`;
   }
   return value;
@@ -39,18 +40,61 @@ export function joinConnectionString(pairs) {
 }
 
 /**
- * Combine host and port for drivers that use a single server address.
+ * True when host looks like an IPv6 literal (bracketed or multi-colon).
+ * @param {string} host
+ */
+export function isIpv6Literal(host) {
+  if (!host) return false;
+  if (host.startsWith("[")) return true;
+  return (host.match(/:/g) || []).length >= 2;
+}
+
+/**
+ * Bracket an IPv6 host when needed for Server=host,port / host:port forms.
+ * @param {string} host
+ */
+export function formatHostLiteral(host) {
+  const trimmed = host.trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("[")) return trimmed;
+  if (isIpv6Literal(trimmed)) return `[${trimmed}]`;
+  return trimmed;
+}
+
+/**
+ * Combine host and port for drivers that use a single server address (SQL Server style).
+ * - Named instances (`server\instance`): omit port when it matches `defaultPort` (or is empty).
+ * - IPv6 literals are bracketed so a port can still be appended.
+ *
  * @param {string} host
  * @param {string} port
+ * @param {{ defaultPort?: string }} [options]
  */
-export function serverWithPort(host, port) {
+export function serverWithPort(host, port, { defaultPort = "" } = {}) {
   const trimmedHost = host.trim();
   const trimmedPort = port.trim();
   if (!trimmedHost) return "";
-  if (!trimmedPort) return trimmedHost;
+
+  // Already includes a comma port (or explicit host,port).
   if (trimmedHost.includes(",")) return trimmedHost;
-  if (trimmedHost.includes(":") && !trimmedHost.includes("\\")) return trimmedHost;
-  return `${trimmedHost},${trimmedPort}`;
+
+  const namedInstance = trimmedHost.includes("\\");
+  const ipv6 = isIpv6Literal(trimmedHost);
+  const hostPart = formatHostLiteral(trimmedHost);
+
+  if (!trimmedPort) return hostPart;
+
+  // Named instance: skip the engine default port so SQL Browser / instance resolution works.
+  if (namedInstance && (!defaultPort || trimmedPort === defaultPort)) {
+    return hostPart;
+  }
+
+  // Non-IPv6 host that already embeds a colon (unusual for SQL Server) — leave as-is.
+  if (!ipv6 && !namedInstance && trimmedHost.includes(":")) {
+    return trimmedHost;
+  }
+
+  return `${hostPart},${trimmedPort}`;
 }
 
 /**
@@ -62,38 +106,51 @@ export function serverWithColonPort(host, port) {
   const trimmedHost = host.trim();
   const trimmedPort = port.trim();
   if (!trimmedHost) return "";
-  if (!trimmedPort) return trimmedHost;
-  if (trimmedHost.includes(":")) return trimmedHost;
-  return `${trimmedHost}:${trimmedPort}`;
+
+  const ipv6 = isIpv6Literal(trimmedHost);
+  const hostPart = formatHostLiteral(trimmedHost);
+
+  if (!trimmedPort) return hostPart;
+  if (!ipv6 && trimmedHost.includes(":")) return trimmedHost;
+  if (/\]:\d+$/.test(hostPart)) return hostPart;
+  return `${hostPart}:${trimmedPort}`;
 }
 
 /**
- * Oracle easy-connect style data source: host:port/service
+ * Oracle easy-connect style data source: host:port/service or host:port:sid
  * @param {string} host
  * @param {string} port
  * @param {string} database
+ * @param {{ identifier?: "service" | "sid" }} [options]
  */
-export function oracleEasyConnect(host, port, database) {
+export function oracleEasyConnect(host, port, database, { identifier = "service" } = {}) {
   const trimmedHost = host.trim();
   const trimmedPort = port.trim() || "1521";
   const trimmedDb = database.trim();
   if (!trimmedHost) return "";
-  if (!trimmedDb) return `${trimmedHost}:${trimmedPort}`;
-  return `${trimmedHost}:${trimmedPort}/${trimmedDb}`;
+  const hostPart = formatHostLiteral(trimmedHost);
+  if (!trimmedDb) return `${hostPart}:${trimmedPort}`;
+  if (identifier === "sid") {
+    return `${hostPart}:${trimmedPort}:${trimmedDb}`;
+  }
+  return `${hostPart}:${trimmedPort}/${trimmedDb}`;
 }
 
 /**
- * Oracle TNS-style descriptor.
+ * Oracle TNS-style descriptor (SERVICE_NAME or SID).
  * @param {string} host
  * @param {string} port
  * @param {string} serviceName
+ * @param {{ identifier?: "service" | "sid" }} [options]
  */
-export function oracleTnsDescriptor(host, port, serviceName) {
+export function oracleTnsDescriptor(host, port, serviceName, { identifier = "service" } = {}) {
   const trimmedHost = host.trim();
   const trimmedPort = port.trim() || "1521";
   const trimmedService = serviceName.trim();
   if (!trimmedHost || !trimmedService) return "";
-  return `(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=${trimmedHost})(PORT=${trimmedPort}))(CONNECT_DATA=(SERVICE_NAME=${trimmedService})))`;
+  const connectData =
+    identifier === "sid" ? `(SID=${trimmedService})` : `(SERVICE_NAME=${trimmedService})`;
+  return `(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=${trimmedHost})(PORT=${trimmedPort}))(CONNECT_DATA=${connectData}))`;
 }
 
 /**
@@ -102,7 +159,7 @@ export function oracleTnsDescriptor(host, port, serviceName) {
  * @param {Record<string, string | undefined | null | boolean>} pairs
  */
 export function withDsnOrPairs(values, pairs) {
-  if (values.useDsn && values.dsn) {
+  if (values.useDsn) {
     return joinConnectionString({
       DSN: values.dsn,
       Uid: values.username,
@@ -116,10 +173,11 @@ export function withDsnOrPairs(values, pairs) {
  * @param {import("./index.js").ConnectionValues} values
  */
 export function oracleDataSource(values) {
+  const identifier = values.oracleIdentifierType === "sid" ? "sid" : "service";
   if (values.oracleConnectMode === "tns") {
-    return oracleTnsDescriptor(values.host, values.port, values.database);
+    return oracleTnsDescriptor(values.host, values.port, values.database, { identifier });
   }
-  return oracleEasyConnect(values.host, values.port, values.database);
+  return oracleEasyConnect(values.host, values.port, values.database, { identifier });
 }
 
 /**
@@ -153,42 +211,106 @@ export function oracleAuthPairs(format, osAuth, creds) {
 }
 
 /**
+ * Connection timeout keyword for the current database / format.
  * @param {import("./index.js").ConnectionValues} values
  * @param {"odbc" | "oledb" | "adonet"} format
  */
 export function timeoutPair(values, format) {
   if (!values.connectionTimeout) return {};
-  if (format === "odbc" && values.db === "mssql") {
-    return { "Connect Timeout": values.connectionTimeout };
+  const db = values.db;
+  const timeout = values.connectionTimeout;
+
+  // Microsoft ODBC Driver for SQL Server documents LoginTimeout.
+  if (format === "odbc" && (db === "mssql" || db === "azuresql")) {
+    return { LoginTimeout: timeout };
   }
-  return { "Connection Timeout": values.connectionTimeout };
+
+  // Npgsql (PostgreSQL / Redshift ADO.NET style).
+  if (format === "adonet" && (db === "postgresql" || db === "redshift")) {
+    return { Timeout: timeout };
+  }
+
+  return { "Connection Timeout": timeout };
 }
 
 /**
+ * Always emit Encrypt so ODBC Driver 18+ / modern clients do not keep their default-on.
  * @param {import("./index.js").ConnectionValues} values
  * @param {"odbc" | "oledb" | "adonet"} format
  */
 export function mssqlEncryptPair(values, format) {
-  if (!values.encrypt) return {};
-  if (format === "adonet") return { Encrypt: "True" };
-  return { Encrypt: "yes" };
+  if (format === "adonet") {
+    return { Encrypt: values.encrypt ? "True" : "False" };
+  }
+  if (format === "oledb") {
+    return { "Use Encryption for Data": values.encrypt ? "true" : "false" };
+  }
+  return { Encrypt: values.encrypt ? "yes" : "no" };
 }
 
 /**
+ * Azure SQL encrypt keywords (always emitted).
+ * @param {import("./index.js").ConnectionValues} values
+ * @param {"odbc" | "oledb" | "adonet"} format
+ */
+export function azureEncryptPair(values, format) {
+  // Treat undefined as on (Azure expects encryption); explicit false turns it off.
+  const encryptOn = values.encrypt !== false;
+  if (format === "oledb") {
+    return { "Use Encryption for Data": encryptOn ? "true" : "false" };
+  }
+  if (format === "adonet") {
+    return { Encrypt: encryptOn ? "True" : "False" };
+  }
+  return { Encrypt: encryptOn ? "yes" : "no" };
+}
+
+/**
+ * TrustServerCertificate for MSSQL / Azure SQL when requested.
+ * @param {import("./index.js").ConnectionValues} values
+ * @param {"odbc" | "oledb" | "adonet"} format
+ */
+export function mssqlTrustCertPair(values, format) {
+  if (!values.trustServerCertificate) return {};
+  if (format === "adonet") return { TrustServerCertificate: "True" };
+  if (format === "oledb") return { TrustServerCertificate: "true" };
+  return { TrustServerCertificate: "yes" };
+}
+
+/**
+ * SSL / TLS keywords for MySQL, MariaDB, PostgreSQL, and Redshift.
+ * Always emits a mode so “Off” disables driver defaults (e.g. Npgsql Prefer).
+ *
  * @param {import("./index.js").ConnectionValues} values
  * @param {"odbc" | "adonet"} format
  */
 export function sslPairs(values, format) {
-  if (!values.sslMode || values.sslMode === "off") return {};
+  const mode = values.sslMode || "off";
+  const db = values.db;
+
   if (format === "adonet") {
-    const mode =
-      values.sslMode === "required" ? "Require" : values.sslMode === "preferred" ? "Prefer" : "Disable";
-    return { SslMode: mode };
+    if (db === "postgresql" || db === "redshift") {
+      const map = { off: "Disable", preferred: "Prefer", required: "Require" };
+      return { "SSL Mode": map[mode] ?? "Disable" };
+    }
+    if (db === "mysql" || db === "mariadb") {
+      const map = { off: "Disabled", preferred: "Preferred", required: "Required" };
+      return { SslMode: map[mode] ?? "Disabled" };
+    }
+    return {};
   }
-  if (values.sslMode === "required") {
-    if (values.db === "mysql" || values.db === "mariadb") return { sslverify: "1" };
-    if (values.db === "redshift") return { SSL: "1" };
-    if (values.db === "postgresql") return { sslmode: "require" };
+
+  if (db === "mysql" || db === "mariadb") {
+    const map = { off: "DISABLED", preferred: "PREFERRED", required: "REQUIRED" };
+    return { SSLMODE: map[mode] ?? "DISABLED" };
+  }
+  if (db === "postgresql") {
+    const map = { off: "disable", preferred: "prefer", required: "require" };
+    return { sslmode: map[mode] ?? "disable" };
+  }
+  if (db === "redshift") {
+    if (mode === "off") return { SSL: "0" };
+    return { SSL: "1" };
   }
   return {};
 }

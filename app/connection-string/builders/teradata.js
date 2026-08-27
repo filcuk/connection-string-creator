@@ -6,12 +6,15 @@ import { formatDriverName, joinConnectionString, timeoutPair, withDsnOrPairs } f
  */
 export function buildTeradata(values, format) {
   const timeout = timeoutPair(values, format);
+  const port = values.port.trim() ? { PortNumber: values.port.trim() } : {};
+  const database = values.database.trim() ? { Database: values.database.trim() } : {};
 
   if (format === "odbc") {
     return withDsnOrPairs(values, {
       Driver: formatDriverName(values.driverName),
       DBCName: values.host,
-      Database: values.database,
+      ...port,
+      ...database,
       Uid: values.username,
       Pwd: values.password,
       ...timeout,
@@ -23,7 +26,8 @@ export function buildTeradata(values, format) {
       return joinConnectionString({
         Provider: values.driverName,
         DBCName: values.host,
-        Database: values.database,
+        ...port,
+        ...database,
         Uid: values.username,
         Pwd: values.password,
         ...timeout,
@@ -33,6 +37,8 @@ export function buildTeradata(values, format) {
     return joinConnectionString({
       Provider: values.driverName,
       "Data Source": values.host,
+      ...port,
+      ...database,
       "User ID": values.username,
       Password: values.password,
       "Session Mode": "ANSI",
@@ -42,6 +48,8 @@ export function buildTeradata(values, format) {
 
   return joinConnectionString({
     "Data Source": values.host,
+    ...port,
+    ...database,
     "User ID": values.username,
     Password: values.password,
     ...timeout,
