@@ -31,7 +31,7 @@ import {
   isSupported,
 } from "./connection-string/index.js";
 
-initShell();
+initShell({ headingLinks: false, pageNav: false });
 
 const ABOUT_HINT_STORAGE_KEY = "connection-string-generator-about-hint-seen";
 /** Persisted form inputs (never includes password). */
