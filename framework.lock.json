@@ -4,11 +4,13 @@
   "source": "filcuk/sma1-framework",
   "components": [
     "dropdown",
-    "expand",
     "toggle-button",
     "segmented-control",
-    "checkbox",
-    "fields"
+    "fields",
+    "section-panel",
+    "duration-input",
+    "combobox",
+    "badge"
   ],
   "skills": [
     "*"

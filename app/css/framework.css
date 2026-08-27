@@ -5,8 +5,9 @@
  */
 @import url("layout.css");
 @import url("controls-buttons.css");
+@import url("controls-badges.css");
 @import url("controls-fields.css");
 @import url("controls-widgets.css");
+@import url("controls-section-panel.css");
 @import url("controls-menus.css");
-@import url("controls-disclosure.css");
 @import url("overlays.css");

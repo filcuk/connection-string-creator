@@ -21,6 +21,15 @@
   flex-shrink: 0;
 }
 
+.btn.dropdown-trigger {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.btn.dropdown-trigger > [data-icon] {
+  margin-left: auto;
+}
+
 .conn-form-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -33,14 +42,63 @@
   gap: 0.75rem;
 }
 
+.conn-server-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: start;
+}
+
+.conn-host-field {
+  flex: 2 1 14rem;
+  min-width: 0;
+}
+
+.conn-port-field {
+  flex: 0 0 auto;
+}
+
+.conn-database-field {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+
 @media (min-width: 640px) {
   .conn-form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .conn-server-row,
+  .conn-auth-field,
+  .conn-opt-oracle-os {
+    grid-column: 1 / -1;
+  }
+}
+
+.conn-auth-field .segmented-control,
+.conn-opt-sqlite-version .segmented-control,
+.conn-opt-ssl .segmented-control {
+  align-self: flex-start;
 }
 
 .conn-form-grid .field {
   max-width: none;
+}
+
+.conn-port-field .input {
+  width: calc(8ch + 1.5rem);
+  max-width: 100%;
+}
+
+.conn-form input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.conn-form input[type="number"]::-webkit-outer-spin-button,
+.conn-form input[type="number"]::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
 }
 
 .field-hint {
@@ -71,6 +129,16 @@
   cursor: pointer;
 }
 
+.conn-opt-oracle-mode .conn-select {
+  width: calc(36ch + 2.5rem);
+  max-width: 100%;
+}
+
+.conn-opt-db2-mode .conn-select {
+  width: calc(24ch + 2.5rem);
+  max-width: 100%;
+}
+
 .conn-output-wrap {
   display: flex;
   flex-direction: column;
@@ -87,26 +155,24 @@
 
 .conn-copy-btn {
   align-self: flex-start;
+}
+
+.conn-copy-btn [data-icon] {
   display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
+  flex-shrink: 0;
+  line-height: 0;
 }
 
-@media (min-width: 640px) {
-  .conn-password-field {
-    grid-column: span 1;
-  }
-}
-
-.conn-advanced {
-  margin-top: 0.25rem;
+.conn-copy-btn .btn-icon-svg {
+  width: 1rem;
+  height: 1rem;
+  display: block;
 }
 
 .conn-advanced-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: 1rem;
-  padding-top: 0.5rem;
 }
 
 @media (min-width: 640px) {
@@ -119,7 +185,26 @@
   max-width: none;
 }
 
+.conn-opt-schema {
+  justify-self: start;
+  width: max-content;
+  max-width: 100%;
+}
+
+.conn-opt-charset {
+  justify-self: start;
+  width: calc(12ch + 2.5rem);
+  max-width: 100%;
+}
+
 .conn-advanced-grid .checkbox {
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 400;
+  align-items: flex-start;
+}
+
+.conn-form-grid .conn-opt-oracle-os .checkbox {
   color: var(--muted);
   font-size: 0.875rem;
   font-weight: 400;
@@ -129,6 +214,62 @@
 .conn-advanced-grid .checkbox code {
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   font-size: 0.8125rem;
+}
+
+.conn-driver-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.conn-dsn-row {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1.25rem;
+}
+
+.conn-dsn-row .checkbox {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 400;
+  padding-bottom: 0.45rem;
+}
+
+.conn-dsn-row:not(:has(.conn-dsn-name:not([hidden]))) .checkbox {
+  padding-bottom: 0;
+}
+
+.conn-dsn-name {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.conn-dsn-row .input {
+  width: 100%;
+  max-width: none;
+}
+
+@media (min-width: 640px) {
+  .conn-source-row {
+    grid-column: 1 / -1;
+  }
+}
+
+.conn-driver-row .dropdown {
+  flex: 0 0 auto;
+}
+
+.conn-driver-row .input {
+  flex: 1 1 12rem;
+  min-width: 0;
+  width: auto;
 }
 
 @media (min-width: 640px) {

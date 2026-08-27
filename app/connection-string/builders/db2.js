@@ -6,7 +6,7 @@ import { formatDriverName, joinConnectionString, serverWithColonPort, timeoutPai
  */
 export function buildDb2(values, format) {
   const timeout = timeoutPair(values, format);
-  const schemaOdbc = values.schema ? { CurrentSchema: values.schema } : {};
+  const schemaCurrent = values.schema ? { CurrentSchema: values.schema } : {};
   const schemaOledb = values.schema ? { "Default Schema": values.schema } : {};
   const packageCol = values.packageCollection ? { "Package Collection": values.packageCollection } : {};
 
@@ -17,6 +17,7 @@ export function buildDb2(values, format) {
         DBALIAS: values.dbAlias,
         Uid: values.username,
         Pwd: values.password,
+        ...schemaCurrent,
         ...timeout,
       });
     }
@@ -25,6 +26,7 @@ export function buildDb2(values, format) {
         Server: values.dbAlias,
         UID: values.username,
         PWD: values.password,
+        ...schemaCurrent,
         ...timeout,
       });
     }
@@ -39,7 +41,7 @@ export function buildDb2(values, format) {
       Protocol: "TCPIP",
       Uid: values.username,
       Pwd: values.password,
-      ...schemaOdbc,
+      ...schemaCurrent,
       ...timeout,
     });
   }
@@ -64,6 +66,7 @@ export function buildDb2(values, format) {
     Database: values.database,
     UID: values.username,
     PWD: values.password,
+    ...schemaCurrent,
     ...timeout,
   });
 }

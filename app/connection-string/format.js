@@ -102,7 +102,7 @@ export function oracleTnsDescriptor(host, port, serviceName) {
  * @param {Record<string, string | undefined | null | boolean>} pairs
  */
 export function withDsnOrPairs(values, pairs) {
-  if (values.useDsn && values.dsn) {
+  if (values.useDsn) {
     return joinConnectionString({
       DSN: values.dsn,
       Uid: values.username,

@@ -1,4 +1,4 @@
-import { formatDriverName, joinConnectionString, timeoutPair } from "../format.js";
+import { formatDriverName, joinConnectionString, timeoutPair, withDsnOrPairs } from "../format.js";
 
 /**
  * @param {import("../index.js").ConnectionValues} values
@@ -9,7 +9,7 @@ export function buildSqlite(values, format) {
   const dataSource = values.sqliteInMemory ? ":memory:" : values.database;
 
   if (format === "odbc") {
-    return joinConnectionString({
+    return withDsnOrPairs(values, {
       Driver: formatDriverName(values.driverName),
       Database: dataSource,
       ...timeout,

@@ -30,6 +30,7 @@ export const SHARED_FIELDS = [
     label: "Password",
     type: "password",
     placeholder: "Optional",
+    hint: "All information remains safely in your browser.",
   },
 ];
 
@@ -74,7 +75,6 @@ export const FIELD_OVERRIDES = {
     database: {
       label: "Database file path",
       placeholder: "C:\\data\\mydb.db or /var/data/mydb.db",
-      hint: "Path to the .db file, or use in-memory in Advanced options.",
     },
   },
   redshift: {
@@ -94,7 +94,7 @@ export const FIELD_OVERRIDES = {
   },
   teradata: {
     host: { label: "Data source / DBC name", placeholder: "myserver" },
-    database: { hint: "Used for the Teradata OLE DB provider (optional for ODBC/ADO.NET)." },
+    database: { hint: "Optional for ODBC/ADO.NET." },
   },
 };
 

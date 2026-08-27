@@ -1,8 +1,9 @@
 import { initShell } from "./shell/shell.js";
 import { initDropdown } from "./components/dropdown.js";
-import { initExpand } from "./components/expand.js";
 import { initToggleButton } from "./components/toggle-button.js";
 import { initSegmentedControl } from "./components/segmented-control.js";
+import { initDurationInput, parseDurationValue } from "./components/duration-input.js";
+import { initCombobox } from "./components/combobox.js";
 import { initIcons } from "./utils/icons.js";
 import { setHidden } from "./utils/dom.js";
 import { copyText } from "./utils/clipboard.js";
@@ -15,6 +16,7 @@ import {
   buildConnectionString,
   DATABASES,
   DATABASE_IDS,
+  DRIVER_PRESETS,
   encryptDefaultOn,
   FORMAT_LABELS,
   getDefaultDriver,
@@ -30,13 +32,19 @@ initShell();
 let currentDb = "mssql";
 /** @type {import("./connection-string/types.js").ConnectionFormat} */
 let currentFormat = "odbc";
+/** @type {"sql" | "windows"} */
+let currentAuthMode = "sql";
+
+const CUSTOM_DRIVER_LABEL = "Custom…";
 
 const dbDropdownLabel = document.getElementById("db-dropdown-label");
 const dbDropdownMenu = document.getElementById("db-dropdown-menu");
+const authToggleEl = document.getElementById("auth-toggle");
+const driverDropdownLabel = document.getElementById("driver-dropdown-label");
+const driverDropdownMenu = document.getElementById("driver-dropdown-menu");
 const formatToggleEl = document.getElementById("driver-toggle");
 const outputEl = document.getElementById("conn-output");
 const copyBtn = document.getElementById("conn-copy");
-const driverPresetEl = document.getElementById("conn-driver-preset");
 const driverCustomEl = document.getElementById("conn-driver-custom");
 const driverLabelEl = document.getElementById("conn-driver-label");
 const driverFieldEl = document.querySelector(".conn-driver-field");
@@ -57,8 +65,6 @@ const fieldInputs = {
 const advancedInputs = {
   useDsn: document.getElementById("conn-use-dsn"),
   dsn: document.getElementById("conn-dsn"),
-  timeout: document.getElementById("conn-timeout"),
-  authMode: document.getElementById("conn-auth-mode"),
   encrypt: document.getElementById("conn-encrypt"),
   oracleMode: document.getElementById("conn-oracle-mode"),
   osAuth: document.getElementById("conn-os-auth"),
@@ -66,25 +72,75 @@ const advancedInputs = {
   dbAlias: document.getElementById("conn-db-alias"),
   schema: document.getElementById("conn-schema"),
   packageCollection: document.getElementById("conn-package-collection"),
-  sslMode: document.getElementById("conn-ssl-mode"),
-  charset: document.getElementById("conn-charset"),
   sqliteMemory: document.getElementById("conn-sqlite-memory"),
-  sqliteVersion: document.getElementById("conn-sqlite-version"),
 };
+
+const sqliteVersionToggleEl = document.getElementById("sqlite-version-toggle");
+const sslToggleEl = document.getElementById("ssl-toggle");
+const charsetInputEl = document.getElementById("conn-charset");
+const charsetComboboxEl = document.getElementById("charset-combobox");
+const timeoutDurationEl = document.getElementById("conn-timeout");
+
+/** @type {ReturnType<typeof initCombobox> | null} */
+let charsetCombobox = null;
+/** @type {ReturnType<typeof initDurationInput> | null} */
+let timeoutDuration = null;
 
 const hostFieldEl = document.querySelector('label[for="conn-host"]');
 const portFieldEl = document.querySelector('label[for="conn-port"]');
 const databaseFieldEl = document.querySelector('label[for="conn-database"]');
+const serverRowEl = document.querySelector(".conn-server-row");
 
 const CUSTOM_DRIVER_VALUE = "__custom__";
+/** Selected driver preset value, or `CUSTOM_DRIVER_VALUE`. */
+let currentDriverValue = "";
 /** Full connection string (unmasked) — used for copy. */
 let connectionStringForCopy = "";
-/** @type {ReturnType<typeof initExpand> | null} */
-let advancedExpand = null;
 /** @type {ReturnType<typeof initToggleButton> | null} */
 let passwordToggleBtn = null;
 /** @type {ReturnType<typeof initSegmentedControl> | null} */
 let formatToggle = null;
+/** @type {ReturnType<typeof initSegmentedControl> | null} */
+let authToggle = null;
+/** @type {ReturnType<typeof initSegmentedControl> | null} */
+let sqliteVersionToggle = null;
+/** @type {ReturnType<typeof initSegmentedControl> | null} */
+let sslToggle = null;
+
+/** Convert duration control (H:MM:SS) to timeout seconds for builders; omit when zero. */
+function readConnectionTimeout() {
+  const hidden = document.querySelector("#conn-timeout .duration-input-value");
+  const parts = parseDurationValue(hidden?.value, { showSeconds: true });
+  if (parts) {
+    const total = parts.hours * 3600 + parts.minutes * 60 + parts.seconds;
+    return total > 0 ? String(total) : "";
+  }
+  const seconds = timeoutDuration?.getSeconds() ?? 0;
+  return seconds > 0 ? String(seconds) : "";
+}
+
+function driverPresetLabel(preset) {
+  return preset.label ?? preset.value;
+}
+
+function allDriverMeasureLabels() {
+  const labels = new Set([CUSTOM_DRIVER_LABEL]);
+  for (const byFormat of Object.values(DRIVER_PRESETS)) {
+    for (const presets of Object.values(byFormat)) {
+      for (const preset of presets) {
+        labels.add(driverPresetLabel(preset));
+      }
+    }
+  }
+  return [...labels];
+}
+
+function setDriverSelection(value, label, { showCustom = false } = {}) {
+  currentDriverValue = value;
+  driverDropdownLabel.textContent = label;
+  setHidden(driverCustomEl, !showCustom);
+  driverCustomEl.hidden = !showCustom;
+}
 
 function buildDbMenu() {
   dbDropdownMenu.replaceChildren(
@@ -186,33 +242,47 @@ function renderDriverPresets() {
   driverLabelEl.textContent = isOledb ? "Provider" : "Driver";
   setHidden(driverFieldEl, hideDriver);
 
-  if (hideDriver) return;
+  if (hideDriver) {
+    currentDriverValue = "";
+    return;
+  }
 
-  driverPresetEl.replaceChildren(
-    ...presets.map(({ value, label }) => {
-      const option = document.createElement("option");
-      option.value = value;
-      option.textContent = label ?? value;
-      return option;
+  driverDropdownMenu.replaceChildren(
+    ...presets.map((preset) => {
+      const item = document.createElement("li");
+      item.setAttribute("role", "none");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "dropdown-menu-item";
+      button.role = "menuitem";
+      button.dataset.value = preset.value;
+      button.textContent = driverPresetLabel(preset);
+      item.append(button);
+      return item;
     }),
     (() => {
-      const option = document.createElement("option");
-      option.value = CUSTOM_DRIVER_VALUE;
-      option.textContent = "Custom…";
-      return option;
+      const item = document.createElement("li");
+      item.setAttribute("role", "none");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "dropdown-menu-item";
+      button.role = "menuitem";
+      button.dataset.value = CUSTOM_DRIVER_VALUE;
+      button.textContent = CUSTOM_DRIVER_LABEL;
+      item.append(button);
+      return item;
     })()
   );
 
   const defaultDriver = getDefaultDriver(currentDb, currentFormat);
-  driverPresetEl.value = defaultDriver;
+  const defaultPreset = presets.find((preset) => preset.value === defaultDriver);
   driverCustomEl.value = defaultDriver;
-  setHidden(driverCustomEl, true);
-  driverCustomEl.hidden = true;
+  setDriverSelection(defaultDriver, defaultPreset ? driverPresetLabel(defaultPreset) : defaultDriver);
 }
 
 function readFormValues() {
-  const useCustomDriver = driverPresetEl.value === CUSTOM_DRIVER_VALUE;
-  const driverName = useCustomDriver ? driverCustomEl.value.trim() : driverPresetEl.value;
+  const useCustomDriver = currentDriverValue === CUSTOM_DRIVER_VALUE;
+  const driverName = useCustomDriver ? driverCustomEl.value.trim() : currentDriverValue;
 
   return {
     host: fieldInputs.host.value.trim(),
@@ -221,21 +291,21 @@ function readFormValues() {
     username: fieldInputs.username.value.trim(),
     password: fieldInputs.password.value,
     driverName,
-    authMode: /** @type {"sql" | "windows"} */ (advancedInputs.authMode.value),
+    authMode: currentAuthMode,
     osAuth: advancedInputs.osAuth.checked,
     encrypt: advancedInputs.encrypt.checked,
-    connectionTimeout: advancedInputs.timeout.value.trim(),
-    useDsn: advancedInputs.useDsn.checked,
+    connectionTimeout: readConnectionTimeout(),
+    useDsn: advancedInputs.useDsn.checked && currentFormat === "odbc",
     dsn: advancedInputs.dsn.value.trim(),
     schema: advancedInputs.schema.value.trim(),
     db2ConnectMode: /** @type {"hostname" | "dbalias"} */ (advancedInputs.db2Mode.value),
     dbAlias: advancedInputs.dbAlias.value.trim(),
     oracleConnectMode: /** @type {"easyconnect" | "tns"} */ (advancedInputs.oracleMode.value),
     packageCollection: advancedInputs.packageCollection.value.trim(),
-    sslMode: /** @type {"off" | "preferred" | "required"} */ (advancedInputs.sslMode.value),
-    charset: advancedInputs.charset.value.trim(),
+    sslMode: /** @type {"off" | "preferred" | "required"} */ (sslToggle?.getValue() || "off"),
+    charset: charsetInputEl?.value.trim() || charsetCombobox?.getValue()?.trim() || "",
     sqliteInMemory: advancedInputs.sqliteMemory.checked,
-    sqliteVersion: /** @type {"2" | "3"} */ (advancedInputs.sqliteVersion.value),
+    sqliteVersion: /** @type {"2" | "3"} */ (sqliteVersionToggle?.getValue() || "3"),
   };
 }
 
@@ -244,51 +314,130 @@ function updateFieldVisibility() {
   const db2Alias = currentDb === "db2" && advancedInputs.db2Mode.value === "dbalias";
   const sqliteMemory = currentDb === "sqlite" && advancedInputs.sqliteMemory.checked;
   const hideCredentials =
-    (currentDb === "mssql" && advancedInputs.authMode.value === "windows") ||
+    (currentDb === "mssql" && currentAuthMode === "windows") ||
     (currentDb === "oracle" && advancedInputs.osAuth.checked);
 
   setHidden(hostFieldEl, useDsn || db2Alias || currentDb === "sqlite" || sqliteMemory);
   setHidden(portFieldEl, useDsn || db2Alias || currentDb === "sqlite" || sqliteMemory);
   setHidden(databaseFieldEl, useDsn || db2Alias || sqliteMemory);
+  setHidden(
+    serverRowEl,
+    Boolean(
+      hostFieldEl?.hasAttribute("hidden") &&
+        portFieldEl?.hasAttribute("hidden") &&
+        databaseFieldEl?.hasAttribute("hidden")
+    )
+  );
   setHidden(driverFieldEl, useDsn || currentFormat === "adonet");
   setHidden(usernameFieldEl, hideCredentials || currentDb === "sqlite");
   setHidden(passwordFieldEl, hideCredentials);
 
-  setHidden(document.querySelector(".conn-opt-dsn"), currentFormat !== "odbc");
-  setHidden(document.querySelector(".conn-opt-dsn-name"), currentFormat !== "odbc" || !advancedInputs.useDsn.checked);
+  const showUseDsn = currentFormat === "odbc" && !sqliteMemory;
+  const showSqliteMemory = currentDb === "sqlite" && !useDsn;
+  setHidden(document.querySelector(".conn-opt-dsn"), !showUseDsn);
+  setHidden(document.querySelector(".conn-opt-sqlite-memory"), !showSqliteMemory);
+  setHidden(document.querySelector(".conn-dsn-name"), !useDsn);
+  setHidden(
+    document.querySelector(".conn-source-row"),
+    !showUseDsn && !showSqliteMemory && !useDsn
+  );
 
+  setHidden(document.querySelector(".conn-opt-timeout"), useDsn);
   setHidden(document.querySelector(".conn-opt-mssql-auth"), currentDb !== "mssql");
   setHidden(
     document.querySelector(".conn-opt-mssql-encrypt"),
-    currentDb !== "mssql" && currentDb !== "azuresql"
+    useDsn || (currentDb !== "mssql" && currentDb !== "azuresql")
   );
 
-  setHidden(document.querySelector(".conn-opt-oracle-mode"), currentDb !== "oracle");
-  setHidden(document.querySelector(".conn-opt-oracle-os"), currentDb !== "oracle");
+  setHidden(
+    document.querySelector(".conn-opt-oracle-mode"),
+    useDsn || currentDb !== "oracle"
+  );
+  setHidden(
+    document.querySelector(".conn-opt-oracle-os"),
+    useDsn || currentDb !== "oracle"
+  );
 
   setHidden(
     document.querySelector(".conn-opt-db2-mode"),
-    currentDb !== "db2" || currentFormat === "adonet"
+    useDsn || currentDb !== "db2" || currentFormat === "adonet"
   );
   setHidden(
     document.querySelector(".conn-opt-db-alias"),
-    currentDb !== "db2" || advancedInputs.db2Mode.value !== "dbalias" || currentFormat === "adonet"
+    useDsn ||
+      currentDb !== "db2" ||
+      advancedInputs.db2Mode.value !== "dbalias" ||
+      currentFormat === "adonet"
   );
-  setHidden(document.querySelector(".conn-opt-schema"), currentDb !== "db2");
+  setHidden(document.querySelector(".conn-opt-schema"), useDsn || currentDb !== "db2");
   setHidden(
     document.querySelector(".conn-opt-package"),
-    currentDb !== "db2" || currentFormat !== "oledb"
+    useDsn || currentDb !== "db2" || currentFormat !== "oledb"
   );
 
   const showSsl = ["mysql", "mariadb", "redshift", "postgresql"].includes(currentDb);
-  setHidden(document.querySelector(".conn-opt-ssl"), !showSsl);
+  setHidden(document.querySelector(".conn-opt-ssl"), useDsn || !showSsl);
   setHidden(
     document.querySelector(".conn-opt-charset"),
-    (currentDb !== "mysql" && currentDb !== "mariadb") || currentFormat !== "odbc"
+    useDsn ||
+      (currentDb !== "mysql" && currentDb !== "mariadb") ||
+      currentFormat !== "odbc"
   );
 
-  setHidden(document.querySelector(".conn-opt-sqlite-memory"), currentDb !== "sqlite");
-  setHidden(document.querySelector(".conn-opt-sqlite-version"), currentDb !== "sqlite" || currentFormat !== "adonet");
+  setHidden(
+    document.querySelector(".conn-opt-sqlite-version"),
+    useDsn || currentDb !== "sqlite" || currentFormat !== "adonet"
+  );
+
+  syncFormSections();
+  syncSchemaFieldWidth();
+}
+
+/** Keep DB2 schema input the same width as the database field input. */
+let lastDatabaseInputWidth = 0;
+
+function syncSchemaFieldWidth() {
+  const schemaInput = document.querySelector(".conn-opt-schema .input");
+  if (!(schemaInput instanceof HTMLElement)) return;
+
+  const databaseInput = fieldInputs.database;
+  if (databaseInput instanceof HTMLElement && databaseInput.offsetWidth > 0) {
+    lastDatabaseInputWidth = databaseInput.offsetWidth;
+  }
+
+  if (lastDatabaseInputWidth > 0) {
+    schemaInput.style.width = `${lastDatabaseInputWidth}px`;
+    schemaInput.style.maxWidth = "100%";
+  }
+}
+
+function sectionHasVisibleFields(section) {
+  return [...section.querySelectorAll(".field")].some(
+    (field) => !field.hasAttribute("hidden")
+  );
+}
+
+function syncFormSections() {
+  const sections = [...document.querySelectorAll("#conn-form > .conn-form-section")];
+  sections.forEach((section) => {
+    setHidden(section, !sectionHasVisibleFields(section));
+  });
+
+  document.querySelectorAll("#conn-form > .panel-divider").forEach((divider) => {
+    setHidden(divider, true);
+  });
+
+  const visible = sections.filter((section) => !section.hasAttribute("hidden"));
+  for (let i = 0; i < visible.length - 1; i++) {
+    let el = visible[i].nextElementSibling;
+    while (el && el !== visible[i + 1]) {
+      if (el.classList.contains("panel-divider")) {
+        setHidden(el, false);
+        break;
+      }
+      el = el.nextElementSibling;
+    }
+  }
 }
 
 function isPasswordHidden() {
@@ -305,6 +454,7 @@ function updateOutput() {
   if (!isSupported(currentDb, currentFormat)) {
     connectionStringForCopy = "";
     outputEl.value = "";
+    syncCopyButtonState();
     return;
   }
 
@@ -325,6 +475,11 @@ function updateOutput() {
     driver: currentFormat,
     values: displayValues,
   });
+  syncCopyButtonState();
+}
+
+function syncCopyButtonState() {
+  copyBtn.disabled = !connectionStringForCopy;
 }
 
 function applyDatabaseChange(db, { resetPort = true } = {}) {
@@ -391,14 +546,17 @@ function resetConnectionForm() {
   }
   resetPasswordVisibility();
 
+  currentDriverValue = "";
+  driverDropdownLabel.textContent = "";
   driverCustomEl.value = "";
   setHidden(driverCustomEl, true);
   driverCustomEl.hidden = true;
 
   advancedInputs.useDsn.checked = false;
   advancedInputs.dsn.value = "";
-  advancedInputs.timeout.value = "";
-  advancedInputs.authMode.value = "sql";
+  timeoutDuration?.setSeconds(0);
+  currentAuthMode = "sql";
+  authToggle?.selectValue("sql", { emit: false });
   advancedInputs.encrypt.checked = false;
   advancedInputs.oracleMode.value = "easyconnect";
   advancedInputs.osAuth.checked = false;
@@ -406,12 +564,10 @@ function resetConnectionForm() {
   advancedInputs.dbAlias.value = "";
   advancedInputs.schema.value = "";
   advancedInputs.packageCollection.value = "";
-  advancedInputs.sslMode.value = "off";
-  advancedInputs.charset.value = "";
   advancedInputs.sqliteMemory.checked = false;
-  advancedInputs.sqliteVersion.value = "3";
-
-  advancedExpand?.close();
+  charsetCombobox?.setValue("");
+  sslToggle?.selectValue("off", { emit: false });
+  sqliteVersionToggle?.selectValue("3", { emit: false });
 
   renderFormatToggle();
   updateFieldLabels();
@@ -431,6 +587,12 @@ function bootConnectionForm() {
 
 buildDbMenu();
 
+const dbDropdownTrigger = document.getElementById("db-dropdown-trigger");
+prepareButtonLabelFlash(dbDropdownTrigger, {
+  idle: DATABASES.mssql.label,
+  measureLabels: DATABASE_IDS.map((id) => DATABASES[id].label),
+});
+
 initDropdown(document.getElementById("db-dropdown"), {
   onSelect: ({ value }) => {
     if (value && value !== currentDb) {
@@ -441,7 +603,66 @@ initDropdown(document.getElementById("db-dropdown"), {
   },
 });
 
-advancedExpand = initExpand(document.getElementById("conn-advanced"));
+authToggle = initSegmentedControl(authToggleEl, {
+  defaultValue: "sql",
+  onChange: ({ value, source }) => {
+    if (source === "init") return;
+    if (!value || value === currentAuthMode) return;
+    currentAuthMode = /** @type {"sql" | "windows"} */ (value);
+    updateOutput();
+  },
+});
+
+charsetCombobox = initCombobox(charsetComboboxEl, {
+  allowCustom: true,
+  onChange: () => {
+    updateOutput();
+  },
+});
+
+timeoutDuration = initDurationInput(timeoutDurationEl, {
+  onChange: ({ source }) => {
+    if (source === "init") return;
+    updateOutput();
+  },
+  onInput: () => {
+    updateOutput();
+  },
+});
+
+sqliteVersionToggle = initSegmentedControl(sqliteVersionToggleEl, {
+  defaultValue: "3",
+  onChange: ({ source }) => {
+    if (source === "init") return;
+    updateOutput();
+  },
+});
+
+sslToggle = initSegmentedControl(sslToggleEl, {
+  defaultValue: "off",
+  onChange: ({ source }) => {
+    if (source === "init") return;
+    updateOutput();
+  },
+});
+
+const driverDropdownTrigger = document.getElementById("driver-dropdown-trigger");
+prepareButtonLabelFlash(driverDropdownTrigger, {
+  idle: getDefaultDriver("mssql", "odbc"),
+  measureLabels: allDriverMeasureLabels(),
+});
+
+initDropdown(document.getElementById("driver-dropdown"), {
+  onSelect: ({ value, label }) => {
+    if (!value) return;
+    const isCustom = value === CUSTOM_DRIVER_VALUE;
+    if (isCustom && !driverCustomEl.value) {
+      driverCustomEl.value = getDefaultDriver(currentDb, currentFormat);
+    }
+    setDriverSelection(value, label || CUSTOM_DRIVER_LABEL, { showCustom: isCustom });
+    updateOutput();
+  },
+});
 
 passwordToggleBtn = initToggleButton(passwordToggle, {
   alwaysActive: true,
@@ -455,15 +676,6 @@ passwordToggleBtn = initToggleButton(passwordToggle, {
   },
 });
 
-driverPresetEl.addEventListener("change", () => {
-  const isCustom = driverPresetEl.value === CUSTOM_DRIVER_VALUE;
-  setHidden(driverCustomEl, !isCustom);
-  if (isCustom && !driverCustomEl.value) {
-    driverCustomEl.value = getDefaultDriver(currentDb, currentFormat);
-  }
-  updateOutput();
-});
-
 driverCustomEl.addEventListener("input", updateOutput);
 
 document.getElementById("conn-app").addEventListener("input", (event) => {
@@ -472,16 +684,19 @@ document.getElementById("conn-app").addEventListener("input", (event) => {
 });
 
 document.getElementById("conn-app").addEventListener("change", (event) => {
+  if (event.target === advancedInputs.useDsn && advancedInputs.useDsn.checked) {
+    advancedInputs.sqliteMemory.checked = false;
+  }
+  if (event.target === advancedInputs.sqliteMemory && advancedInputs.sqliteMemory.checked) {
+    advancedInputs.useDsn.checked = false;
+  }
   if (
     event.target === advancedInputs.useDsn ||
-    event.target === advancedInputs.authMode ||
     event.target === advancedInputs.encrypt ||
     event.target === advancedInputs.osAuth ||
     event.target === advancedInputs.db2Mode ||
     event.target === advancedInputs.oracleMode ||
-    event.target === advancedInputs.sslMode ||
-    event.target === advancedInputs.sqliteMemory ||
-    event.target === advancedInputs.sqliteVersion
+    event.target === advancedInputs.sqliteMemory
   ) {
     updateOutput();
   }
@@ -501,6 +716,10 @@ document.getElementById("conn-form")?.addEventListener("submit", (event) => {
 
 initIcons(document.getElementById("conn-app"));
 bootConnectionForm();
+
+window.addEventListener("resize", () => {
+  syncSchemaFieldWidth();
+});
 
 window.addEventListener("pageshow", (event) => {
   if (event.persisted) {
