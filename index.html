@@ -116,11 +116,15 @@
               <input type="checkbox" id="conn-use-dsn" class="checkbox-input" autocomplete="off" />
               <span>Use DSN</span>
             </label>
+            <label class="checkbox conn-opt-db2-alias">
+              <input type="checkbox" id="conn-use-db2-alias" class="checkbox-input" autocomplete="off" />
+              <span>Use alias</span>
+            </label>
             <label class="checkbox conn-opt-sqlite-memory">
               <input type="checkbox" id="conn-sqlite-memory" class="checkbox-input" autocomplete="off" />
               <span>In-memory (<code>:memory:</code>)</span>
             </label>
-            <label class="conn-dsn-name hidden" for="conn-dsn" hidden>
+            <label class="conn-source-name conn-dsn-name hidden" for="conn-dsn" hidden>
               <span class="field-label">DSN Name</span>
               <input
                 type="text"
@@ -129,6 +133,17 @@
                 autocomplete="off"
                 spellcheck="false"
                 placeholder="MyDataSource"
+              />
+            </label>
+            <label class="conn-source-name conn-db-alias-name hidden" for="conn-db-alias" hidden>
+              <span class="field-label">Database alias</span>
+              <input
+                type="text"
+                id="conn-db-alias"
+                class="input"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="SAMPLE"
               />
             </label>
           </div>
@@ -248,36 +263,52 @@
         <hr class="panel-divider" aria-hidden="true" />
 
         <div class="conn-advanced-grid conn-form-section">
-          <label class="field conn-opt-timeout" for="conn-timeout">
+          <div class="field duration-input conn-opt-timeout" id="conn-timeout" data-duration-seconds data-duration-default="0:00:00">
             <span class="field-label" id="conn-timeout-label">Connection timeout</span>
-            <input
-              type="number"
-              id="conn-timeout"
-              class="input"
-              min="0"
-              max="65535"
-              step="1"
-              inputmode="numeric"
-              placeholder="seconds"
-              autocomplete="off"
-            />
-            <span class="field-hint">Optional. Seconds to wait when opening a connection (0 = omit).</span>
-          </label>
-
-          <div class="field conn-opt-mssql-encrypt">
-            <span class="field-label" id="conn-encrypt-heading">Encrypt connection</span>
-            <label class="checkbox">
-              <input type="checkbox" id="conn-encrypt" class="checkbox-input" autocomplete="off" />
-              <span id="conn-encrypt-text">Use encrypted connection</span>
-            </label>
+            <div class="duration-input-control" role="group" aria-labelledby="conn-timeout-label">
+              <input
+                type="text"
+                class="input duration-input-hours"
+                inputmode="numeric"
+                aria-label="Hours"
+              />
+              <span class="duration-input-sep" aria-hidden="true">:</span>
+              <input
+                type="text"
+                class="input duration-input-minutes"
+                inputmode="numeric"
+                maxlength="2"
+                aria-label="Minutes"
+              />
+              <span class="duration-input-sep" aria-hidden="true">:</span>
+              <input
+                type="text"
+                class="input duration-input-seconds"
+                inputmode="numeric"
+                maxlength="2"
+                aria-label="Seconds"
+              />
+            </div>
+            <input type="hidden" class="duration-input-value" name="connection-timeout" value="0:00:00" />
+            <span class="field-hint">Optional time to wait when opening a connection.</span>
           </div>
 
-          <div class="field conn-opt-trust-cert">
-            <span class="field-label" id="conn-trust-cert-heading">Trust server certificate</span>
-            <label class="checkbox">
-              <input type="checkbox" id="conn-trust-cert" class="checkbox-input" autocomplete="off" />
-              <span>Skip validating the server TLS certificate</span>
-            </label>
+          <div class="conn-encrypt-stack">
+            <div class="field conn-opt-mssql-encrypt">
+              <span class="field-label" id="conn-encrypt-heading">Encrypt connection</span>
+              <label class="checkbox">
+                <input type="checkbox" id="conn-encrypt" class="checkbox-input" autocomplete="off" />
+                <span id="conn-encrypt-text">Use encrypted connection</span>
+              </label>
+            </div>
+
+            <div class="field conn-opt-trust-cert">
+              <span class="field-label" id="conn-trust-cert-heading">Trust server certificate</span>
+              <label class="checkbox">
+                <input type="checkbox" id="conn-trust-cert" class="checkbox-input" autocomplete="off" />
+                <span>Skip validating the server TLS certificate</span>
+              </label>
+            </div>
           </div>
 
           <label class="field conn-opt-oracle-mode" for="conn-oracle-mode">
@@ -288,26 +319,40 @@
             </select>
           </label>
 
-          <label class="field conn-opt-oracle-id" for="conn-oracle-id">
-            <span class="field-label">Oracle identifier</span>
-            <select id="conn-oracle-id" class="input conn-select" autocomplete="off">
-              <option value="service">Service name</option>
-              <option value="sid">SID</option>
-            </select>
-          </label>
-
-          <label class="field conn-opt-db2-mode" for="conn-db2-mode">
-            <span class="field-label">DB2 connect mode</span>
-            <select id="conn-db2-mode" class="input conn-select" autocomplete="off">
-              <option value="hostname">Hostname and database</option>
-              <option value="dbalias">Database alias (DBALIAS)</option>
-            </select>
-          </label>
-
-          <label class="field conn-opt-db-alias" for="conn-db-alias">
-            <span class="field-label">Database alias</span>
-            <input type="text" id="conn-db-alias" class="input" autocomplete="off" spellcheck="false" />
-          </label>
+          <div class="field conn-opt-oracle-id">
+            <span class="field-label" id="conn-oracle-id-label">Oracle identifier</span>
+            <div
+              id="oracle-id-toggle"
+              class="segmented-control"
+              data-segmented-control-default="service"
+            >
+              <div
+                class="segmented-control-list"
+                role="radiogroup"
+                aria-labelledby="conn-oracle-id-label"
+              >
+                <button
+                  type="button"
+                  class="segmented-control-item"
+                  role="radio"
+                  aria-checked="true"
+                  data-segmented-control-value="service"
+                >
+                  Service name
+                </button>
+                <button
+                  type="button"
+                  class="segmented-control-item"
+                  role="radio"
+                  aria-checked="false"
+                  data-segmented-control-value="sid"
+                >
+                  SID
+                </button>
+              </div>
+              <input type="hidden" class="segmented-control-value" name="oracle-identifier" value="service" />
+            </div>
+          </div>
 
           <label class="field conn-opt-schema" for="conn-schema">
             <span class="field-label">Schema</span>

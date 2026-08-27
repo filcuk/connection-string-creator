@@ -88,7 +88,8 @@
 
 .conn-auth-field .segmented-control,
 .conn-opt-sqlite-version .segmented-control,
-.conn-opt-ssl .segmented-control {
+.conn-opt-ssl .segmented-control,
+.conn-opt-oracle-id .segmented-control {
   align-self: flex-start;
 }
 
@@ -96,8 +97,7 @@
   max-width: none;
 }
 
-.conn-port-field .input,
-.conn-opt-timeout .input {
+.conn-port-field .input {
   width: calc(8ch + 1.5rem);
   max-width: 100%;
 }
@@ -151,11 +151,6 @@
   max-width: 100%;
 }
 
-.conn-opt-db2-mode .conn-select {
-  width: calc(24ch + 2.5rem);
-  max-width: 100%;
-}
-
 .conn-output-wrap {
   display: flex;
   flex-direction: column;
@@ -189,6 +184,12 @@
 .conn-advanced-grid {
   display: grid;
   grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.conn-encrypt-stack {
+  display: flex;
+  flex-direction: column;
   gap: 1rem;
 }
 
@@ -273,11 +274,11 @@
   padding-bottom: 0.45rem;
 }
 
-.conn-dsn-row:not(:has(.conn-dsn-name:not([hidden]))) .checkbox {
+.conn-dsn-row:not(:has(.conn-source-name:not([hidden]))) .checkbox {
   padding-bottom: 0;
 }
 
-.conn-dsn-name {
+.conn-source-name {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;

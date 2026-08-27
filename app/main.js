@@ -2,6 +2,7 @@ import { initShell } from "./shell/shell.js";
 import { initDropdown } from "./components/dropdown.js";
 import { initToggleButton } from "./components/toggle-button.js";
 import { initSegmentedControl } from "./components/segmented-control.js";
+import { initDurationInput, parseDurationValue } from "./components/duration-input.js";
 import { initCombobox } from "./components/combobox.js";
 import { initAboutDialog } from "./components/about-dialog.js";
 import { initDialog } from "./components/dialog.js";
@@ -175,9 +176,8 @@ const advancedInputs = {
   encrypt: document.getElementById("conn-encrypt"),
   trustServerCertificate: document.getElementById("conn-trust-cert"),
   oracleMode: document.getElementById("conn-oracle-mode"),
-  oracleId: document.getElementById("conn-oracle-id"),
   osAuth: document.getElementById("conn-os-auth"),
-  db2Mode: document.getElementById("conn-db2-mode"),
+  useDb2Alias: document.getElementById("conn-use-db2-alias"),
   dbAlias: document.getElementById("conn-db-alias"),
   schema: document.getElementById("conn-schema"),
   packageCollection: document.getElementById("conn-package-collection"),
@@ -186,13 +186,16 @@ const advancedInputs = {
 
 const sqliteVersionToggleEl = document.getElementById("sqlite-version-toggle");
 const sslToggleEl = document.getElementById("ssl-toggle");
+const oracleIdToggleEl = document.getElementById("oracle-id-toggle");
 const charsetInputEl = document.getElementById("conn-charset");
 const charsetComboboxEl = document.getElementById("charset-combobox");
-const timeoutInputEl = document.getElementById("conn-timeout");
+const timeoutDurationEl = document.getElementById("conn-timeout");
 const outputIncompleteEl = document.getElementById("conn-output-incomplete");
 
 /** @type {ReturnType<typeof initCombobox> | null} */
 let charsetCombobox = null;
+/** @type {ReturnType<typeof initDurationInput> | null} */
+let timeoutDuration = null;
 
 /** True when username was auto-filled as SYSDBA for Firebird. */
 let firebirdUserAutoFilled = false;
@@ -217,22 +220,25 @@ let authToggle = null;
 let sqliteVersionToggle = null;
 /** @type {ReturnType<typeof initSegmentedControl> | null} */
 let sslToggle = null;
+/** @type {ReturnType<typeof initSegmentedControl> | null} */
+let oracleIdToggle = null;
 
-/** Read timeout seconds from the number input; omit when empty or zero. */
+/** Convert duration control (H:MM:SS) to timeout seconds for builders; omit when zero. */
 function readConnectionTimeout() {
-  if (!(timeoutInputEl instanceof HTMLInputElement)) return "";
-  const raw = timeoutInputEl.value.trim();
-  if (!raw) return "";
-  const seconds = Number(raw);
-  if (!Number.isFinite(seconds) || seconds <= 0) return "";
-  return String(Math.min(65535, Math.trunc(seconds)));
+  const hidden = document.querySelector("#conn-timeout .duration-input-value");
+  const parts = parseDurationValue(hidden?.value, { showSeconds: true });
+  if (parts) {
+    const total = parts.hours * 3600 + parts.minutes * 60 + parts.seconds;
+    return total > 0 ? String(total) : "";
+  }
+  const seconds = timeoutDuration?.getSeconds() ?? 0;
+  return seconds > 0 ? String(seconds) : "";
 }
 
-/** Write timeout seconds into the number input (empty when zero/omitted). */
+/** Write timeout seconds into the duration control (zero clears). */
 function setConnectionTimeoutSeconds(seconds) {
-  if (!(timeoutInputEl instanceof HTMLInputElement)) return;
   const n = Number(seconds);
-  timeoutInputEl.value = Number.isFinite(n) && n > 0 ? String(Math.trunc(n)) : "";
+  timeoutDuration?.setSeconds(Number.isFinite(n) && n > 0 ? Math.trunc(n) : 0);
 }
 
 function driverPresetLabel(preset) {
@@ -437,10 +443,15 @@ function readFormValues() {
     useDsn: advancedInputs.useDsn.checked && currentFormat === "odbc",
     dsn: advancedInputs.dsn.value.trim(),
     schema: advancedInputs.schema.value.trim(),
-    db2ConnectMode: /** @type {"hostname" | "dbalias"} */ (advancedInputs.db2Mode.value),
+    db2ConnectMode:
+      currentDb === "db2" &&
+      currentFormat !== "oledb" &&
+      advancedInputs.useDb2Alias.checked
+        ? "dbalias"
+        : "hostname",
     dbAlias: advancedInputs.dbAlias.value.trim(),
     oracleConnectMode: /** @type {"easyconnect" | "tns"} */ (advancedInputs.oracleMode.value),
-    oracleIdentifierType: /** @type {"service" | "sid"} */ (advancedInputs.oracleId.value),
+    oracleIdentifierType: /** @type {"service" | "sid"} */ (oracleIdToggle?.getValue() || "service"),
     packageCollection: advancedInputs.packageCollection.value.trim(),
     sslMode: /** @type {"off" | "preferred" | "required"} */ (sslToggle?.getValue() || "off"),
     charset: charsetInputEl?.value.trim() || charsetCombobox?.getValue()?.trim() || "",
@@ -451,7 +462,10 @@ function readFormValues() {
 
 function updateFieldVisibility() {
   const useDsn = advancedInputs.useDsn.checked && currentFormat === "odbc";
-  const db2Alias = currentDb === "db2" && advancedInputs.db2Mode.value === "dbalias";
+  const db2Alias =
+    currentDb === "db2" &&
+    currentFormat !== "oledb" &&
+    advancedInputs.useDb2Alias.checked;
   const sqliteMemory = currentDb === "sqlite" && advancedInputs.sqliteMemory.checked;
   const hideCredentials =
     (currentDb === "mssql" && currentAuthMode === "windows") ||
@@ -462,10 +476,7 @@ function updateFieldVisibility() {
     portFieldEl,
     useDsn || db2Alias || currentDb === "sqlite" || sqliteMemory || currentDb === "as400"
   );
-  setHidden(
-    databaseFieldEl,
-    useDsn || db2Alias || sqliteMemory
-  );
+  setHidden(databaseFieldEl, useDsn || db2Alias || sqliteMemory);
   setHidden(
     serverRowEl,
     Boolean(
@@ -478,27 +489,32 @@ function updateFieldVisibility() {
   setHidden(usernameFieldEl, hideCredentials || currentDb === "sqlite");
   setHidden(passwordFieldEl, hideCredentials);
 
-  const showUseDsn = currentFormat === "odbc" && !sqliteMemory;
-  const showSqliteMemory = currentDb === "sqlite" && !useDsn;
+  const showUseDsn = currentFormat === "odbc" && !sqliteMemory && !db2Alias;
+  const showUseDb2Alias =
+    currentDb === "db2" && currentFormat !== "oledb" && !useDsn && !sqliteMemory;
+  const showSqliteMemory = currentDb === "sqlite" && !useDsn && !db2Alias;
   setHidden(document.querySelector(".conn-opt-dsn"), !showUseDsn);
+  setHidden(document.querySelector(".conn-opt-db2-alias"), !showUseDb2Alias);
   setHidden(document.querySelector(".conn-opt-sqlite-memory"), !showSqliteMemory);
   setHidden(document.querySelector(".conn-dsn-name"), !useDsn);
+  setHidden(document.querySelector(".conn-db-alias-name"), !db2Alias);
   setHidden(
     document.querySelector(".conn-source-row"),
-    !showUseDsn && !showSqliteMemory && !useDsn
+    !showUseDsn && !showUseDb2Alias && !showSqliteMemory && !useDsn && !db2Alias
   );
 
   setHidden(document.querySelector(".conn-opt-timeout"), useDsn);
   setHidden(document.querySelector(".conn-opt-mssql-auth"), currentDb !== "mssql");
-  setHidden(
-    document.querySelector(".conn-opt-mssql-encrypt"),
-    useDsn ||
-      (currentDb !== "mssql" && currentDb !== "azuresql" && !(currentDb === "as400" && currentFormat === "odbc"))
-  );
-  setHidden(
-    document.querySelector(".conn-opt-trust-cert"),
-    useDsn || (currentDb !== "mssql" && currentDb !== "azuresql")
-  );
+
+  const showEncrypt =
+    !useDsn &&
+    (currentDb === "mssql" ||
+      currentDb === "azuresql" ||
+      (currentDb === "as400" && currentFormat === "odbc"));
+  const showTrustCert = !useDsn && (currentDb === "mssql" || currentDb === "azuresql");
+  setHidden(document.querySelector(".conn-opt-mssql-encrypt"), !showEncrypt);
+  setHidden(document.querySelector(".conn-opt-trust-cert"), !showTrustCert);
+  setHidden(document.querySelector(".conn-encrypt-stack"), !showEncrypt && !showTrustCert);
 
   const encryptHeading = document.getElementById("conn-encrypt-heading");
   const encryptText = document.getElementById("conn-encrypt-text");
@@ -523,17 +539,6 @@ function updateFieldVisibility() {
     useDsn || currentDb !== "oracle"
   );
 
-  setHidden(
-    document.querySelector(".conn-opt-db2-mode"),
-    useDsn || currentDb !== "db2" || currentFormat === "oledb"
-  );
-  setHidden(
-    document.querySelector(".conn-opt-db-alias"),
-    useDsn ||
-      currentDb !== "db2" ||
-      advancedInputs.db2Mode.value !== "dbalias" ||
-      currentFormat === "oledb"
-  );
   setHidden(document.querySelector(".conn-opt-schema"), useDsn || currentDb !== "db2");
   setHidden(
     document.querySelector(".conn-opt-package"),
@@ -566,7 +571,13 @@ function syncRequiredFields() {
       format: currentFormat,
       useDsn,
       sqliteInMemory: currentDb === "sqlite" && advancedInputs.sqliteMemory.checked,
-      db2ConnectMode: /** @type {"hostname" | "dbalias"} */ (advancedInputs.db2Mode.value),
+      db2ConnectMode: /** @type {"hostname" | "dbalias"} */ (
+        currentDb === "db2" &&
+        currentFormat !== "oledb" &&
+        advancedInputs.useDb2Alias.checked
+          ? "dbalias"
+          : "hostname"
+      ),
     })
   );
 
@@ -595,7 +606,7 @@ function syncRequiredFields() {
     dbAlias: {
       control: advancedInputs.dbAlias,
       value: advancedInputs.dbAlias?.value.trim() ?? "",
-      field: document.querySelector(".conn-opt-db-alias"),
+      field: document.querySelector(".conn-db-alias-name"),
     },
     driver: {
       control:
@@ -792,10 +803,11 @@ function applyPersistedForm(state) {
   advancedInputs.trustServerCertificate.checked = Boolean(state.trustServerCertificate);
   advancedInputs.oracleMode.value =
     state.oracleConnectMode === "tns" ? "tns" : "easyconnect";
-  advancedInputs.oracleId.value = state.oracleIdentifierType === "sid" ? "sid" : "service";
+  const oracleId = state.oracleIdentifierType === "sid" ? "sid" : "service";
+  oracleIdToggle?.selectValue(oracleId, { emit: false });
   advancedInputs.osAuth.checked = Boolean(state.osAuth);
-  advancedInputs.db2Mode.value =
-    state.db2ConnectMode === "dbalias" ? "dbalias" : "hostname";
+  advancedInputs.useDb2Alias.checked =
+    Boolean(state.db2ConnectMode === "dbalias") && currentFormat !== "oledb";
   advancedInputs.dbAlias.value = typeof state.dbAlias === "string" ? state.dbAlias : "";
   advancedInputs.schema.value = typeof state.schema === "string" ? state.schema : "";
   advancedInputs.packageCollection.value =
@@ -896,7 +908,13 @@ function hasRequiredGaps() {
     format: currentFormat,
     useDsn,
     sqliteInMemory: currentDb === "sqlite" && advancedInputs.sqliteMemory.checked,
-    db2ConnectMode: /** @type {"hostname" | "dbalias"} */ (advancedInputs.db2Mode.value),
+    db2ConnectMode: /** @type {"hostname" | "dbalias"} */ (
+      currentDb === "db2" &&
+      currentFormat !== "oledb" &&
+      advancedInputs.useDb2Alias.checked
+        ? "dbalias"
+        : "hostname"
+    ),
   });
 
   for (const id of required) {
@@ -988,9 +1006,9 @@ function applyFormatChange(format) {
   if (format !== "odbc") {
     advancedInputs.useDsn.checked = false;
   }
-  // DB2 OLE DB has no DBALIAS path — fall back to hostname mode.
+  // DB2 OLE DB has no DBALIAS path — clear alias mode.
   if (format === "oledb" && currentDb === "db2") {
-    advancedInputs.db2Mode.value = "hostname";
+    advancedInputs.useDb2Alias.checked = false;
   }
   renderDriverPresets({ preserveSelection: true });
   updateOutput();
@@ -1044,9 +1062,9 @@ function resetConnectionForm() {
   advancedInputs.encrypt.checked = false;
   advancedInputs.trustServerCertificate.checked = false;
   advancedInputs.oracleMode.value = "easyconnect";
-  advancedInputs.oracleId.value = "service";
+  oracleIdToggle?.selectValue("service", { emit: false });
   advancedInputs.osAuth.checked = false;
-  advancedInputs.db2Mode.value = "hostname";
+  advancedInputs.useDb2Alias.checked = false;
   advancedInputs.dbAlias.value = "";
   advancedInputs.schema.value = "";
   advancedInputs.packageCollection.value = "";
@@ -1122,6 +1140,16 @@ charsetCombobox = initCombobox(charsetComboboxEl, {
   },
 });
 
+timeoutDuration = initDurationInput(timeoutDurationEl, {
+  onChange: ({ source }) => {
+    if (source === "init") return;
+    updateOutput();
+  },
+  onInput: () => {
+    updateOutput();
+  },
+});
+
 sqliteVersionToggle = initSegmentedControl(sqliteVersionToggleEl, {
   defaultValue: "3",
   onChange: ({ source }) => {
@@ -1132,6 +1160,14 @@ sqliteVersionToggle = initSegmentedControl(sqliteVersionToggleEl, {
 
 sslToggle = initSegmentedControl(sslToggleEl, {
   defaultValue: "off",
+  onChange: ({ source }) => {
+    if (source === "init") return;
+    updateOutput();
+  },
+});
+
+oracleIdToggle = initSegmentedControl(oracleIdToggleEl, {
+  defaultValue: "service",
   onChange: ({ source }) => {
     if (source === "init") return;
     updateOutput();
@@ -1183,18 +1219,23 @@ document.getElementById("conn-app").addEventListener("input", (event) => {
 document.getElementById("conn-app").addEventListener("change", (event) => {
   if (event.target === advancedInputs.useDsn && advancedInputs.useDsn.checked) {
     advancedInputs.sqliteMemory.checked = false;
+    advancedInputs.useDb2Alias.checked = false;
+  }
+  if (event.target === advancedInputs.useDb2Alias && advancedInputs.useDb2Alias.checked) {
+    advancedInputs.useDsn.checked = false;
+    advancedInputs.sqliteMemory.checked = false;
   }
   if (event.target === advancedInputs.sqliteMemory && advancedInputs.sqliteMemory.checked) {
     advancedInputs.useDsn.checked = false;
+    advancedInputs.useDb2Alias.checked = false;
   }
   if (
     event.target === advancedInputs.useDsn ||
+    event.target === advancedInputs.useDb2Alias ||
     event.target === advancedInputs.encrypt ||
     event.target === advancedInputs.trustServerCertificate ||
     event.target === advancedInputs.osAuth ||
-    event.target === advancedInputs.db2Mode ||
     event.target === advancedInputs.oracleMode ||
-    event.target === advancedInputs.oracleId ||
     event.target === advancedInputs.sqliteMemory
   ) {
     updateOutput();
