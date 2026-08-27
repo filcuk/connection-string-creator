@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "node --test app/connection-string/__tests__/build-connection-string.test.js",
+    "test:goldens": "node app/connection-string/__tests__/generate-goldens.mjs",
     "sync:framework": "node scripts/sync-framework.mjs",
     "verify:framework": "node scripts/verify-framework.mjs"
   }
