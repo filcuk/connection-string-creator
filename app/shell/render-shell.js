@@ -848,7 +848,6 @@ export function renderPageShell(options = {}) {
     appUrl,
     appVersion,
     frameworkVersion,
-    pageNav = true,
   } = {
     ...DEFAULTS,
     ...overrides,
@@ -879,6 +878,6 @@ export function renderPageShell(options = {}) {
         <button type="button" class="theme-toggle-btn" data-theme-mode="auto" data-icon="auto-mode" data-icon-class="theme-icon" aria-label="System theme" aria-pressed="false" title="System"></button>
       </div>
     </footer>
-    ${pageNav === false ? "" : PAGE_NAV_MARKUP}`
+    ${PAGE_NAV_MARKUP}`
   );
 }

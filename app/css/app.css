@@ -1,5 +1,10 @@
 /* Connection string generator (fork-owned; sync will not overwrite) */
 
+/* Framework has no pageNav:false yet — hide chrome in the fork. */
+#page-nav {
+  display: none !important;
+}
+
 :root {
   --accent: #0474b3;
 }
