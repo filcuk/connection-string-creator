@@ -4,6 +4,9 @@ import { initToggleButton } from "./components/toggle-button.js";
 import { initSegmentedControl } from "./components/segmented-control.js";
 import { initDurationInput, parseDurationValue } from "./components/duration-input.js";
 import { initCombobox } from "./components/combobox.js";
+import { initAboutDialog } from "./components/about-dialog.js";
+import { initPopover } from "./components/popover.js";
+import { initTutorial } from "./components/tutorial.js";
 import { initIcons } from "./utils/icons.js";
 import { setHidden } from "./utils/dom.js";
 import { copyText } from "./utils/clipboard.js";
@@ -28,6 +31,101 @@ import {
 } from "./connection-string/index.js";
 
 initShell();
+
+const ABOUT_HINT_STORAGE_KEY = "connection-string-generator-about-hint-seen";
+const aboutOpenBtn = document.getElementById("about-open-btn");
+
+/** @type {ReturnType<typeof initPopover> | null} */
+let aboutHintPopover = null;
+
+function hasSeenAboutHint() {
+  try {
+    return localStorage.getItem(ABOUT_HINT_STORAGE_KEY) === "1";
+  } catch {
+    return true;
+  }
+}
+
+function markAboutHintSeen() {
+  try {
+    localStorage.setItem(ABOUT_HINT_STORAGE_KEY, "1");
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+function dismissAboutHint() {
+  if (!aboutHintPopover) return;
+  const popover = aboutHintPopover;
+  aboutHintPopover = null;
+  markAboutHintSeen();
+  popover.destroy();
+}
+
+const overviewTour = initTutorial({
+  id: "connection-string-overview",
+  steps: [
+    {
+      target: "#conn-toolbar",
+      title: "Configuration",
+      body: "Choose the database engine and the API style.",
+      position: "bottom",
+    },
+    {
+      target: "#conn-form",
+      title: "Connection details",
+      body: "Enter host, credentials, driver, and options. Required empty fields are marked; unused options stay hidden.",
+      position: "top",
+    },
+    {
+      target: ".conn-output-wrap",
+      title: "Generated string",
+      body: "The connection string updates as you type. Use Copy when you are ready to paste it into your app or config.",
+      position: "top",
+    },
+  ],
+});
+
+const aboutDialog = initAboutDialog({
+  dialogEl: document.getElementById("about-dialog"),
+  openTriggers: [aboutOpenBtn],
+  onOpen: () => dismissAboutHint(),
+});
+
+document.getElementById("about-guided-tour")?.addEventListener("click", (event) => {
+  event.preventDefault();
+  dismissAboutHint();
+  aboutDialog?.closeDialog();
+  overviewTour?.start();
+});
+
+if (aboutOpenBtn instanceof HTMLElement && !hasSeenAboutHint()) {
+  aboutHintPopover = initPopover({
+    anchor: aboutOpenBtn,
+    body: "Check here for more info and a guided tour!",
+    position: "right",
+    dismissible: false,
+    trapFocus: false,
+    actions: [
+      {
+        label: "Got it",
+        className: "btn btn-primary",
+        closeOnClick: false,
+        onClick: () => dismissAboutHint(),
+      },
+    ],
+    onClose: () => {
+      if (!aboutHintPopover) return;
+      const popover = aboutHintPopover;
+      aboutHintPopover = null;
+      markAboutHintSeen();
+      queueMicrotask(() => popover.destroy());
+    },
+  });
+  window.requestAnimationFrame(() => {
+    aboutHintPopover?.open();
+  });
+}
 
 /** @type {import("./connection-string/types.js").DatabaseId} */
 let currentDb = "mssql";

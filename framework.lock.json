@@ -10,7 +10,11 @@
     "section-panel",
     "duration-input",
     "combobox",
-    "badge"
+    "badge",
+    "dialog",
+    "about-dialog",
+    "popover",
+    "tutorial"
   ],
   "skills": [
     "*"

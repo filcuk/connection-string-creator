@@ -29,7 +29,10 @@
         />
         <h1>Database Connection String Generator</h1>
       </div>
-      <p class="tagline">Build connection strings for common databases.</p>
+      <p class="tagline">
+        Make the <em>connection</em> without the syntax headache.
+        <button type="button" id="about-open-btn" class="btn btn-link tagline-link">What?</button>
+      </p>
     </header>
 
     <main id="conn-app">
@@ -38,13 +41,13 @@
         <span class="banner-body">
           Credit to
           <a href="https://www.connectionstrings.com/" target="_blank" rel="noopener noreferrer">ConnectionStrings.com</a>
-          and its contributors for making this possible.
+          and its contributors as an excellent reference.
         </span>
       </div>
 
       <section class="content-section" aria-labelledby="config-heading">
         <h2 id="config-heading" class="section-title">Configuration</h2>
-        <div class="conn-toolbar">
+        <div class="conn-toolbar" id="conn-toolbar">
           <div class="dropdown" id="db-dropdown" data-dropdown-grid>
             <button
               type="button"
@@ -460,6 +463,83 @@
         </div>
       </section>
     </main>
+
+    <div
+      id="about-dialog"
+      class="modal hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="about-dialog-title"
+      hidden
+    >
+      <div class="modal-backdrop" data-dialog-close></div>
+      <div class="modal-panel">
+        <div class="modal-header">
+          <h2 id="about-dialog-title">What does this do?</h2>
+          <button type="button" class="modal-close" aria-label="Close" data-dialog-close>×</button>
+        </div>
+        <div class="modal-body">
+          <p>
+            Build connection strings for common databases.
+            <br />
+            Nothing is sent to a server — everything runs in your browser.
+          </p>
+          <p>
+            Pick a database and connection format, fill in the fields that apply, and copy a ready-made
+            connection string.
+          </p>
+          <p>
+            You can find many more configurations and details on 
+            <a href="https://www.connectionstrings.com/" target="_blank" rel="noopener noreferrer"
+              >ConnectionStrings.com</a
+            >.
+          </p>
+          <div class="about-extra-content" data-about-extra>
+            <div
+              class="about-extra-block hidden"
+              data-about-stage
+              data-about-next-label="Uhh…"
+              hidden
+            >
+              <p>
+                Just fill in the form with your server, database, and other details. 
+                The app puts everything together and gives you a ready-to-use connection string to copy. 
+                No need to remember tricky formats.
+              </p>
+       
+            </div>
+            <div
+              class="about-extra-block hidden"
+              data-about-stage
+              data-about-next-label="I don't get it"
+              hidden
+            >
+              <p>
+                Need connect. Is difficult. How enter? Do form. Is done. Nice.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn" data-about-confused>Huh?</button>
+          <a
+            class="btn hidden"
+            data-about-final
+            href="https://pbskids.org/games/play/andys-art-studio/59500"
+            target="_blank"
+            rel="noopener noreferrer"
+            hidden
+            >I don't get it</a
+          >
+          <div class="modal-footer-actions">
+            <button type="button" class="btn" id="about-guided-tour">Guided tour</button>
+            <button type="button" class="btn btn-primary" data-dialog-close data-dialog-default>
+              Got it
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <script type="module" src="app/main.js"></script>
   </body>
