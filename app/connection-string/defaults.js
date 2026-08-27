@@ -7,6 +7,7 @@ export const DEFAULT_PORTS = {
   azuresql: "1433",
   oracle: "1521",
   db2: "50000",
+  as400: "",
   mysql: "3306",
   mariadb: "3306",
   postgresql: "5432",
@@ -48,6 +49,14 @@ export const DRIVER_PRESETS = {
   db2: {
     odbc: [{ value: "IBM DB2 ODBC DRIVER" }],
     oledb: [{ value: "DB2OLEDB" }],
+  },
+  as400: {
+    odbc: [
+      { value: "IBM i Access ODBC Driver" },
+      { value: "iSeries Access ODBC Driver" },
+      { value: "Client Access ODBC Driver (32-bit)" },
+    ],
+    oledb: [{ value: "IBMDA400" }],
   },
   mysql: {
     odbc: [

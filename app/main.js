@@ -319,8 +319,17 @@ function updateFieldVisibility() {
     (currentDb === "oracle" && advancedInputs.osAuth.checked);
 
   setHidden(hostFieldEl, useDsn || db2Alias || currentDb === "sqlite" || sqliteMemory);
-  setHidden(portFieldEl, useDsn || db2Alias || currentDb === "sqlite" || sqliteMemory);
-  setHidden(databaseFieldEl, useDsn || db2Alias || sqliteMemory);
+  setHidden(
+    portFieldEl,
+    useDsn || db2Alias || currentDb === "sqlite" || sqliteMemory || currentDb === "as400"
+  );
+  setHidden(
+    databaseFieldEl,
+    useDsn ||
+      db2Alias ||
+      sqliteMemory ||
+      (currentDb === "as400" && currentFormat !== "oledb")
+  );
   setHidden(
     serverRowEl,
     Boolean(
@@ -347,8 +356,19 @@ function updateFieldVisibility() {
   setHidden(document.querySelector(".conn-opt-mssql-auth"), currentDb !== "mssql");
   setHidden(
     document.querySelector(".conn-opt-mssql-encrypt"),
-    useDsn || (currentDb !== "mssql" && currentDb !== "azuresql")
+    useDsn ||
+      (currentDb !== "mssql" && currentDb !== "azuresql" && !(currentDb === "as400" && currentFormat === "odbc"))
   );
+
+  const encryptHeading = document.getElementById("conn-encrypt-heading");
+  const encryptText = document.getElementById("conn-encrypt-text");
+  if (currentDb === "as400") {
+    if (encryptHeading) encryptHeading.textContent = "SSL";
+    if (encryptText) encryptText.textContent = "Use SSL";
+  } else {
+    if (encryptHeading) encryptHeading.textContent = "Encrypt connection";
+    if (encryptText) encryptText.textContent = "Use encrypted connection";
+  }
 
   setHidden(
     document.querySelector(".conn-opt-oracle-mode"),

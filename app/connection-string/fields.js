@@ -62,6 +62,18 @@ export const FIELD_OVERRIDES = {
   db2: {
     host: { placeholder: "hostname or IP address" },
   },
+  as400: {
+    host: {
+      label: "System name",
+      placeholder: "MY_SYSTEM_NAME",
+      hint: "System / Data Source name from IBM i Access / Operations Navigator.",
+    },
+    database: {
+      label: "Library / default collection",
+      placeholder: "MY_LIBRARY",
+      hint: "Used as Default Collection for OLE DB (optional).",
+    },
+  },
   mysql: {
     host: { placeholder: "localhost" },
   },
@@ -147,6 +159,11 @@ export function getRequiredFieldIds(ctx) {
 
   if (ctx.db === "firebird") {
     ids.push("database");
+    return ids;
+  }
+
+  if (ctx.db === "as400") {
+    ids.push("host");
     return ids;
   }
 
