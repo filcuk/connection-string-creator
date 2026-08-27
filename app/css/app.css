@@ -6,10 +6,12 @@
 }
 
 :root {
+  /* Light accent; --accent-fg token default #ffffff passes WCAG AA (5.06:1). */
   --accent: #0474b3;
 }
 
 :root[data-theme="dark"] {
+  /* Dark accent; --accent-fg token default #0d1117 passes WCAG AA (8.83:1). */
   --accent: #38bdf8;
 }
 

@@ -7,7 +7,6 @@ import { initAboutDialog } from "./components/about-dialog.js";
 import { initDialog } from "./components/dialog.js";
 import { initPopover } from "./components/popover.js";
 import { initTutorial } from "./components/tutorial.js";
-import { initIcons } from "./utils/icons.js";
 import { setHidden } from "./utils/dom.js";
 import { copyText } from "./utils/clipboard.js";
 import {
@@ -256,7 +255,6 @@ function setDriverSelection(value, label, { showCustom = false } = {}) {
   currentDriverValue = value;
   driverDropdownLabel.textContent = label;
   setHidden(driverCustomEl, !showCustom);
-  driverCustomEl.hidden = !showCustom;
 }
 
 function buildDbMenu() {
@@ -1038,7 +1036,6 @@ function resetConnectionForm() {
   driverDropdownLabel.textContent = "";
   driverCustomEl.value = "";
   setHidden(driverCustomEl, true);
-  driverCustomEl.hidden = true;
 
   advancedInputs.useDsn.checked = false;
   advancedInputs.dsn.value = "";
@@ -1226,7 +1223,6 @@ document.getElementById("conn-form")?.addEventListener("submit", (event) => {
   event.preventDefault();
 });
 
-initIcons(document.getElementById("conn-app"));
 bootConnectionForm();
 
 window.addEventListener("resize", () => {
