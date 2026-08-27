@@ -27,6 +27,7 @@ import { isSupported } from "./types.js";
  * @property {"sql" | "windows"} authMode
  * @property {boolean} osAuth
  * @property {boolean} encrypt
+ * @property {boolean} trustServerCertificate
  * @property {string} connectionTimeout
  * @property {boolean} useDsn
  * @property {string} dsn

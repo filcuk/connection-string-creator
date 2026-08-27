@@ -175,6 +175,7 @@ const advancedInputs = {
   useDsn: document.getElementById("conn-use-dsn"),
   dsn: document.getElementById("conn-dsn"),
   encrypt: document.getElementById("conn-encrypt"),
+  trustServerCertificate: document.getElementById("conn-trust-cert"),
   oracleMode: document.getElementById("conn-oracle-mode"),
   osAuth: document.getElementById("conn-os-auth"),
   db2Mode: document.getElementById("conn-db2-mode"),
@@ -403,6 +404,7 @@ function readFormValues() {
     authMode: currentAuthMode,
     osAuth: advancedInputs.osAuth.checked,
     encrypt: advancedInputs.encrypt.checked,
+    trustServerCertificate: advancedInputs.trustServerCertificate.checked,
     connectionTimeout: readConnectionTimeout(),
     useDsn: advancedInputs.useDsn.checked && currentFormat === "odbc",
     dsn: advancedInputs.dsn.value.trim(),
@@ -466,6 +468,10 @@ function updateFieldVisibility() {
     document.querySelector(".conn-opt-mssql-encrypt"),
     useDsn ||
       (currentDb !== "mssql" && currentDb !== "azuresql" && !(currentDb === "as400" && currentFormat === "odbc"))
+  );
+  setHidden(
+    document.querySelector(".conn-opt-trust-cert"),
+    useDsn || (currentDb !== "mssql" && currentDb !== "azuresql")
   );
 
   const encryptHeading = document.getElementById("conn-encrypt-heading");
@@ -672,6 +678,7 @@ function collectPersistableState() {
     useDsn: advancedInputs.useDsn.checked,
     dsn: values.dsn,
     encrypt: values.encrypt,
+    trustServerCertificate: values.trustServerCertificate,
     connectionTimeout: values.connectionTimeout,
     osAuth: values.osAuth,
     oracleConnectMode: values.oracleConnectMode,
@@ -755,6 +762,7 @@ function applyPersistedForm(state) {
   advancedInputs.useDsn.checked = Boolean(state.useDsn) && currentFormat === "odbc";
   advancedInputs.dsn.value = typeof state.dsn === "string" ? state.dsn : "";
   advancedInputs.encrypt.checked = Boolean(state.encrypt);
+  advancedInputs.trustServerCertificate.checked = Boolean(state.trustServerCertificate);
   advancedInputs.oracleMode.value =
     state.oracleConnectMode === "tns" ? "tns" : "easyconnect";
   advancedInputs.osAuth.checked = Boolean(state.osAuth);
@@ -855,7 +863,9 @@ function isFormBlank() {
   if (currentDriverValue === CUSTOM_DRIVER_VALUE) return false;
   if (currentDriverValue !== defaultDriver) return false;
   if (values.useDsn || values.dsn) return false;
-  if (values.encrypt || values.osAuth || values.sqliteInMemory) return false;
+  if (values.encrypt || values.trustServerCertificate || values.osAuth || values.sqliteInMemory) {
+    return false;
+  }
   if (values.connectionTimeout) return false;
   if (values.dbAlias || values.schema || values.packageCollection || values.charset) return false;
   if (values.sslMode !== "off") return false;
@@ -948,6 +958,7 @@ function resetConnectionForm() {
   currentAuthMode = "sql";
   authToggle?.selectValue("sql", { emit: false });
   advancedInputs.encrypt.checked = false;
+  advancedInputs.trustServerCertificate.checked = false;
   advancedInputs.oracleMode.value = "easyconnect";
   advancedInputs.osAuth.checked = false;
   advancedInputs.db2Mode.value = "hostname";
@@ -1098,6 +1109,7 @@ document.getElementById("conn-app").addEventListener("change", (event) => {
   if (
     event.target === advancedInputs.useDsn ||
     event.target === advancedInputs.encrypt ||
+    event.target === advancedInputs.trustServerCertificate ||
     event.target === advancedInputs.osAuth ||
     event.target === advancedInputs.db2Mode ||
     event.target === advancedInputs.oracleMode ||

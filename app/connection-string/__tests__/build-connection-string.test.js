@@ -75,6 +75,7 @@ describe("isSupported matrix", () => {
                 authMode: "sql",
                 osAuth: false,
                 encrypt: false,
+                trustServerCertificate: false,
                 connectionTimeout: "",
                 useDsn: false,
                 dsn: "",

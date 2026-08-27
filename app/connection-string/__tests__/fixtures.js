@@ -31,6 +31,7 @@ export function baseValues(db, format, overrides = {}) {
     authMode: "sql",
     osAuth: false,
     encrypt: false,
+    trustServerCertificate: false,
     connectionTimeout: "",
     useDsn: false,
     dsn: "",
@@ -88,6 +89,12 @@ export const SCENARIOS = [
     values: () => ({ encrypt: false }),
   },
   {
+    id: "trust-cert",
+    label: "trust server certificate",
+    applies: (db) => db === "mssql" || db === "azuresql",
+    values: () => ({ encrypt: true, trustServerCertificate: true }),
+  },
+  {
     id: "windows-auth",
     label: "Windows integrated auth",
     applies: (db) => db === "mssql",
@@ -95,6 +102,33 @@ export const SCENARIOS = [
       authMode: "windows",
       username: "",
       password: "",
+    }),
+  },
+  {
+    id: "ipv6",
+    label: "IPv6 host with port",
+    applies: (db) => db === "mssql" || db === "azuresql",
+    values: () => ({
+      host: "2001:db8::1",
+      port: "1433",
+    }),
+  },
+  {
+    id: "named-instance",
+    label: "SQL Server named instance with default port",
+    applies: (db) => db === "mssql",
+    values: (db) => ({
+      host: "SERVER\\SQLEXPRESS",
+      port: getDefaultPort(db),
+    }),
+  },
+  {
+    id: "named-instance-custom-port",
+    label: "SQL Server named instance with custom port",
+    applies: (db) => db === "mssql",
+    values: () => ({
+      host: "SERVER\\SQLEXPRESS",
+      port: "1434",
     }),
   },
   {
@@ -258,15 +292,6 @@ export const SCENARIOS = [
     values: () => ({
       driverName: "Teradata",
       port: "1025",
-    }),
-  },
-  {
-    id: "named-instance",
-    label: "SQL Server named instance with default port",
-    applies: (db) => db === "mssql",
-    values: (db) => ({
-      host: "SERVER\\SQLEXPRESS",
-      port: getDefaultPort(db),
     }),
   },
   {

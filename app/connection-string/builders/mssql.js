@@ -3,6 +3,7 @@ import {
   joinConnectionString,
   mssqlAuthPairs,
   mssqlEncryptPair,
+  mssqlTrustCertPair,
   serverWithPort,
   timeoutPair,
   withDsnOrPairs,
@@ -13,9 +14,10 @@ import {
  * @param {"odbc" | "oledb" | "adonet"} format
  */
 export function buildMssql(values, format) {
-  const server = serverWithPort(values.host, values.port);
+  const server = serverWithPort(values.host, values.port, { defaultPort: "1433" });
   const timeout = timeoutPair(values, format);
   const encrypt = mssqlEncryptPair(values, format);
+  const trust = mssqlTrustCertPair(values, format);
 
   if (format === "odbc") {
     return withDsnOrPairs(values, {
@@ -27,6 +29,7 @@ export function buildMssql(values, format) {
         other: { UID: values.username, PWD: values.password },
       }),
       ...encrypt,
+      ...trust,
       ...timeout,
     });
   }
@@ -43,6 +46,7 @@ export function buildMssql(values, format) {
       Database: values.database,
       ...auth,
       ...encrypt,
+      ...trust,
       ...timeout,
     });
   }
@@ -57,6 +61,7 @@ export function buildMssql(values, format) {
     Database: values.database,
     ...auth,
     ...encrypt,
+    ...trust,
     ...timeout,
   });
 }
