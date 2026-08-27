@@ -17,21 +17,16 @@ export const DATABASES = {
   teradata: { label: "Teradata", drivers: ["odbc", "oledb", "adonet"] },
 };
 
-/** @type {DatabaseId[]} */
-export const DATABASE_IDS = [
-  "mssql",
-  "azuresql",
-  "oracle",
-  "db2",
-  "as400",
-  "mysql",
-  "mariadb",
-  "postgresql",
-  "sqlite",
-  "redshift",
-  "firebird",
-  "teradata",
-];
+/** @type {DatabaseId[]} — sorted alphabetically by display label */
+export const DATABASE_IDS = /** @type {DatabaseId[]} */ (
+  Object.keys(DATABASES).sort((a, b) =>
+    DATABASES[/** @type {DatabaseId} */ (a)].label.localeCompare(
+      DATABASES[/** @type {DatabaseId} */ (b)].label,
+      "en",
+      { sensitivity: "base" }
+    )
+  )
+);
 
 /** @type {Record<ConnectionFormat, string>} */
 export const FORMAT_LABELS = {
