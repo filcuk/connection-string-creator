@@ -109,3 +109,54 @@ export function getFieldsForDatabase(db) {
     ...overrides[field.id],
   }));
 }
+
+/**
+ * Field ids that must be non-empty for the current connection mode.
+ *
+ * @param {{
+ *   db: DatabaseId,
+ *   format: import("./types.js").ConnectionFormat,
+ *   useDsn: boolean,
+ *   sqliteInMemory: boolean,
+ *   db2ConnectMode: "hostname" | "dbalias",
+ * }} ctx
+ * @returns {string[]}
+ */
+export function getRequiredFieldIds(ctx) {
+  /** @type {string[]} */
+  const ids = [];
+
+  if (ctx.useDsn) {
+    ids.push("dsn");
+    return ids;
+  }
+
+  if (ctx.format !== "adonet") {
+    ids.push("driver");
+  }
+
+  if (ctx.db === "sqlite") {
+    if (!ctx.sqliteInMemory) ids.push("database");
+    return ids;
+  }
+
+  if (ctx.db === "db2" && ctx.db2ConnectMode === "dbalias") {
+    ids.push("dbAlias");
+    return ids;
+  }
+
+  if (ctx.db === "firebird") {
+    ids.push("database");
+    return ids;
+  }
+
+  ids.push("host", "port");
+
+  if (ctx.db === "teradata") {
+    if (ctx.format === "oledb") ids.push("database");
+  } else {
+    ids.push("database");
+  }
+
+  return ids;
+}

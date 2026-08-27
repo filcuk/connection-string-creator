@@ -23,6 +23,7 @@ import {
   getDefaultPort,
   getDriverPresets,
   getFieldsForDatabase,
+  getRequiredFieldIds,
   isSupported,
 } from "./connection-string/index.js";
 
@@ -391,6 +392,81 @@ function updateFieldVisibility() {
 
   syncFormSections();
   syncSchemaFieldWidth();
+  syncRequiredFields();
+}
+
+/**
+ * Mark required controls and flag empty ones as invalid (red border).
+ */
+function syncRequiredFields() {
+  const useDsn = advancedInputs.useDsn.checked && currentFormat === "odbc";
+  const required = new Set(
+    getRequiredFieldIds({
+      db: currentDb,
+      format: currentFormat,
+      useDsn,
+      sqliteInMemory: currentDb === "sqlite" && advancedInputs.sqliteMemory.checked,
+      db2ConnectMode: /** @type {"hostname" | "dbalias"} */ (advancedInputs.db2Mode.value),
+    })
+  );
+
+  /** @type {Record<string, { control: HTMLElement | null, value: string, field?: Element | null }>} */
+  const targets = {
+    host: {
+      control: fieldInputs.host,
+      value: fieldInputs.host?.value.trim() ?? "",
+      field: hostFieldEl,
+    },
+    port: {
+      control: fieldInputs.port,
+      value: fieldInputs.port?.value.trim() ?? "",
+      field: portFieldEl,
+    },
+    database: {
+      control: fieldInputs.database,
+      value: fieldInputs.database?.value.trim() ?? "",
+      field: databaseFieldEl,
+    },
+    dsn: {
+      control: advancedInputs.dsn,
+      value: advancedInputs.dsn?.value.trim() ?? "",
+      field: document.querySelector(".conn-dsn-name"),
+    },
+    dbAlias: {
+      control: advancedInputs.dbAlias,
+      value: advancedInputs.dbAlias?.value.trim() ?? "",
+      field: document.querySelector(".conn-opt-db-alias"),
+    },
+    driver: {
+      control:
+        currentDriverValue === CUSTOM_DRIVER_VALUE
+          ? driverCustomEl
+          : document.getElementById("driver-dropdown-trigger"),
+      value:
+        currentDriverValue === CUSTOM_DRIVER_VALUE
+          ? driverCustomEl?.value.trim() ?? ""
+          : currentDriverValue.trim(),
+      field: driverFieldEl,
+    },
+  };
+
+  for (const [id, target] of Object.entries(targets)) {
+    const isRequired = required.has(id);
+    const control = target.control;
+    const field = target.field;
+    const empty = !target.value;
+
+    field?.classList.toggle("is-required", isRequired);
+    if (control instanceof HTMLInputElement || control instanceof HTMLSelectElement) {
+      control.toggleAttribute("required", isRequired);
+      if (isRequired && empty) control.setAttribute("aria-invalid", "true");
+      else control.removeAttribute("aria-invalid");
+    } else if (control instanceof HTMLElement) {
+      // Dropdown trigger (driver presets)
+      if (isRequired && empty) control.setAttribute("aria-invalid", "true");
+      else control.removeAttribute("aria-invalid");
+    }
+  }
 }
 
 /** Keep DB2 schema input the same width as the database field input. */

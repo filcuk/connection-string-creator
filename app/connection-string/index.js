@@ -94,4 +94,4 @@ export {
   getDefaultPort,
   getDriverPresets,
 } from "./defaults.js";
-export { getFieldsForDatabase } from "./fields.js";
+export { getFieldsForDatabase, getRequiredFieldIds } from "./fields.js";

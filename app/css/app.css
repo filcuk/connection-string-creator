@@ -197,6 +197,23 @@
   max-width: 100%;
 }
 
+.field.is-required > .field-label::after,
+.is-required > .field-label::after {
+  content: " *";
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.conn-form .input[aria-invalid="true"],
+.conn-form .btn.dropdown-trigger[aria-invalid="true"] {
+  border-color: var(--banner-error-border);
+}
+
+.conn-form .input[aria-invalid="true"]:focus,
+.conn-form .btn.dropdown-trigger[aria-invalid="true"]:focus-visible {
+  outline-color: var(--banner-error-border);
+}
+
 .conn-advanced-grid .checkbox {
   color: var(--muted);
   font-size: 0.875rem;
