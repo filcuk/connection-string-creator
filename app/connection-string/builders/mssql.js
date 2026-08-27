@@ -37,13 +37,13 @@ export function buildMssql(values, format) {
   if (format === "oledb") {
     const auth =
       values.authMode === "windows"
-        ? { Trusted_Connection: "yes" }
-        : { UID: values.username, PWD: values.password };
+        ? { "Integrated Security": "SSPI" }
+        : { "User ID": values.username, Password: values.password };
 
     return joinConnectionString({
       Provider: values.driverName,
-      Server: server,
-      Database: values.database,
+      "Data Source": server,
+      "Initial Catalog": values.database,
       ...auth,
       ...encrypt,
       ...trust,

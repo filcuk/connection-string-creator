@@ -83,6 +83,7 @@ describe("isSupported matrix", () => {
                 db2ConnectMode: "hostname",
                 dbAlias: "",
                 oracleConnectMode: "easyconnect",
+                oracleIdentifierType: "service",
                 packageCollection: "",
                 sslMode: "off",
                 charset: "",

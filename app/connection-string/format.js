@@ -117,33 +117,40 @@ export function serverWithColonPort(host, port) {
 }
 
 /**
- * Oracle easy-connect style data source: host:port/service
+ * Oracle easy-connect style data source: host:port/service or host:port:sid
  * @param {string} host
  * @param {string} port
  * @param {string} database
+ * @param {{ identifier?: "service" | "sid" }} [options]
  */
-export function oracleEasyConnect(host, port, database) {
+export function oracleEasyConnect(host, port, database, { identifier = "service" } = {}) {
   const trimmedHost = host.trim();
   const trimmedPort = port.trim() || "1521";
   const trimmedDb = database.trim();
   if (!trimmedHost) return "";
   const hostPart = formatHostLiteral(trimmedHost);
   if (!trimmedDb) return `${hostPart}:${trimmedPort}`;
+  if (identifier === "sid") {
+    return `${hostPart}:${trimmedPort}:${trimmedDb}`;
+  }
   return `${hostPart}:${trimmedPort}/${trimmedDb}`;
 }
 
 /**
- * Oracle TNS-style descriptor.
+ * Oracle TNS-style descriptor (SERVICE_NAME or SID).
  * @param {string} host
  * @param {string} port
  * @param {string} serviceName
+ * @param {{ identifier?: "service" | "sid" }} [options]
  */
-export function oracleTnsDescriptor(host, port, serviceName) {
+export function oracleTnsDescriptor(host, port, serviceName, { identifier = "service" } = {}) {
   const trimmedHost = host.trim();
   const trimmedPort = port.trim() || "1521";
   const trimmedService = serviceName.trim();
   if (!trimmedHost || !trimmedService) return "";
-  return `(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=${trimmedHost})(PORT=${trimmedPort}))(CONNECT_DATA=(SERVICE_NAME=${trimmedService})))`;
+  const connectData =
+    identifier === "sid" ? `(SID=${trimmedService})` : `(SERVICE_NAME=${trimmedService})`;
+  return `(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=${trimmedHost})(PORT=${trimmedPort}))(CONNECT_DATA=${connectData}))`;
 }
 
 /**
@@ -166,10 +173,11 @@ export function withDsnOrPairs(values, pairs) {
  * @param {import("./index.js").ConnectionValues} values
  */
 export function oracleDataSource(values) {
+  const identifier = values.oracleIdentifierType === "sid" ? "sid" : "service";
   if (values.oracleConnectMode === "tns") {
-    return oracleTnsDescriptor(values.host, values.port, values.database);
+    return oracleTnsDescriptor(values.host, values.port, values.database, { identifier });
   }
-  return oracleEasyConnect(values.host, values.port, values.database);
+  return oracleEasyConnect(values.host, values.port, values.database, { identifier });
 }
 
 /**
@@ -233,6 +241,9 @@ export function timeoutPair(values, format) {
 export function mssqlEncryptPair(values, format) {
   if (format === "adonet") {
     return { Encrypt: values.encrypt ? "True" : "False" };
+  }
+  if (format === "oledb") {
+    return { "Use Encryption for Data": values.encrypt ? "true" : "false" };
   }
   return { Encrypt: values.encrypt ? "yes" : "no" };
 }

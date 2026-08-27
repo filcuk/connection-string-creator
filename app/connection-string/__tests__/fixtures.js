@@ -39,6 +39,7 @@ export function baseValues(db, format, overrides = {}) {
     db2ConnectMode: "hostname",
     dbAlias: "",
     oracleConnectMode: "easyconnect",
+    oracleIdentifierType: "service",
     packageCollection: "",
     sslMode: "off",
     charset: "",
@@ -163,22 +164,41 @@ export const SCENARIOS = [
   },
   {
     id: "charset",
-    label: "MySQL/MariaDB charset",
-    applies: (db, format) =>
-      (db === "mysql" || db === "mariadb") && format === "odbc",
+    label: "MySQL/MariaDB/Firebird charset",
+    applies: (db) => ["mysql", "mariadb", "firebird"].includes(db),
     values: () => ({ charset: "utf8mb4" }),
   },
   {
     id: "oracle-easy",
     label: "Oracle Easy Connect",
     applies: (db) => db === "oracle",
-    values: () => ({ oracleConnectMode: "easyconnect" }),
+    values: () => ({ oracleConnectMode: "easyconnect", oracleIdentifierType: "service" }),
   },
   {
     id: "oracle-tns",
     label: "Oracle TNS descriptor",
     applies: (db) => db === "oracle",
-    values: () => ({ oracleConnectMode: "tns" }),
+    values: () => ({ oracleConnectMode: "tns", oracleIdentifierType: "service" }),
+  },
+  {
+    id: "oracle-sid-easy",
+    label: "Oracle Easy Connect with SID",
+    applies: (db) => db === "oracle",
+    values: () => ({
+      oracleConnectMode: "easyconnect",
+      oracleIdentifierType: "sid",
+      database: "ORCL",
+    }),
+  },
+  {
+    id: "oracle-sid-tns",
+    label: "Oracle TNS with SID",
+    applies: (db) => db === "oracle",
+    values: () => ({
+      oracleConnectMode: "tns",
+      oracleIdentifierType: "sid",
+      database: "ORCL",
+    }),
   },
   {
     id: "oracle-os-auth",
@@ -274,6 +294,15 @@ export const SCENARIOS = [
       port: "3051",
       database: "/var/db/app.fdb",
       username: "SYSDBA",
+    }),
+  },
+  {
+    id: "teradata-custom-port",
+    label: "Teradata non-default port",
+    applies: (db) => db === "teradata",
+    values: () => ({
+      port: "1026",
+      database: "finance",
     }),
   },
   {

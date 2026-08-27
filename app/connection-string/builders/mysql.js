@@ -7,7 +7,8 @@ import { formatDriverName, joinConnectionString, sslPairs, timeoutPair, withDsnO
 export function buildMysql(values, format) {
   const timeout = timeoutPair(values, format);
   const ssl = sslPairs(values, format);
-  const charset = values.charset ? { CharSet: values.charset } : {};
+  const charsetOdbc = values.charset ? { CharSet: values.charset } : {};
+  const charsetAdo = values.charset ? { "Character Set": values.charset } : {};
 
   if (format === "odbc") {
     return withDsnOrPairs(values, {
@@ -17,8 +18,8 @@ export function buildMysql(values, format) {
       Database: values.database,
       Uid: values.username,
       Pwd: values.password,
-      Option: "3",
-      ...charset,
+      FOUND_ROWS: "1",
+      ...charsetOdbc,
       ...ssl,
       ...timeout,
     });
@@ -30,6 +31,7 @@ export function buildMysql(values, format) {
     Database: values.database,
     Uid: values.username,
     Pwd: values.password,
+    ...charsetAdo,
     ...ssl,
     ...timeout,
   });

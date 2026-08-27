@@ -35,6 +35,7 @@ import { isSupported } from "./types.js";
  * @property {"hostname" | "dbalias"} db2ConnectMode
  * @property {string} dbAlias
  * @property {"easyconnect" | "tns"} oracleConnectMode
+ * @property {"service" | "sid"} oracleIdentifierType
  * @property {string} packageCollection
  * @property {"off" | "preferred" | "required"} sslMode
  * @property {string} charset

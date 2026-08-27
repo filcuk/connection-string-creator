@@ -177,6 +177,7 @@ const advancedInputs = {
   encrypt: document.getElementById("conn-encrypt"),
   trustServerCertificate: document.getElementById("conn-trust-cert"),
   oracleMode: document.getElementById("conn-oracle-mode"),
+  oracleId: document.getElementById("conn-oracle-id"),
   osAuth: document.getElementById("conn-os-auth"),
   db2Mode: document.getElementById("conn-db2-mode"),
   dbAlias: document.getElementById("conn-db-alias"),
@@ -412,6 +413,7 @@ function readFormValues() {
     db2ConnectMode: /** @type {"hostname" | "dbalias"} */ (advancedInputs.db2Mode.value),
     dbAlias: advancedInputs.dbAlias.value.trim(),
     oracleConnectMode: /** @type {"easyconnect" | "tns"} */ (advancedInputs.oracleMode.value),
+    oracleIdentifierType: /** @type {"service" | "sid"} */ (advancedInputs.oracleId.value),
     packageCollection: advancedInputs.packageCollection.value.trim(),
     sslMode: /** @type {"off" | "preferred" | "required"} */ (sslToggle?.getValue() || "off"),
     charset: charsetInputEl?.value.trim() || charsetCombobox?.getValue()?.trim() || "",
@@ -435,10 +437,7 @@ function updateFieldVisibility() {
   );
   setHidden(
     databaseFieldEl,
-    useDsn ||
-      db2Alias ||
-      sqliteMemory ||
-      (currentDb === "as400" && currentFormat !== "oledb")
+    useDsn || db2Alias || sqliteMemory
   );
   setHidden(
     serverRowEl,
@@ -489,20 +488,24 @@ function updateFieldVisibility() {
     useDsn || currentDb !== "oracle"
   );
   setHidden(
+    document.querySelector(".conn-opt-oracle-id"),
+    useDsn || currentDb !== "oracle"
+  );
+  setHidden(
     document.querySelector(".conn-opt-oracle-os"),
     useDsn || currentDb !== "oracle"
   );
 
   setHidden(
     document.querySelector(".conn-opt-db2-mode"),
-    useDsn || currentDb !== "db2" || currentFormat === "adonet"
+    useDsn || currentDb !== "db2" || currentFormat === "oledb"
   );
   setHidden(
     document.querySelector(".conn-opt-db-alias"),
     useDsn ||
       currentDb !== "db2" ||
       advancedInputs.db2Mode.value !== "dbalias" ||
-      currentFormat === "adonet"
+      currentFormat === "oledb"
   );
   setHidden(document.querySelector(".conn-opt-schema"), useDsn || currentDb !== "db2");
   setHidden(
@@ -512,12 +515,8 @@ function updateFieldVisibility() {
 
   const showSsl = ["mysql", "mariadb", "redshift", "postgresql"].includes(currentDb);
   setHidden(document.querySelector(".conn-opt-ssl"), useDsn || !showSsl);
-  setHidden(
-    document.querySelector(".conn-opt-charset"),
-    useDsn ||
-      (currentDb !== "mysql" && currentDb !== "mariadb") ||
-      currentFormat !== "odbc"
-  );
+  const showCharset = ["mysql", "mariadb", "firebird"].includes(currentDb);
+  setHidden(document.querySelector(".conn-opt-charset"), useDsn || !showCharset);
 
   setHidden(
     document.querySelector(".conn-opt-sqlite-version"),
@@ -682,6 +681,7 @@ function collectPersistableState() {
     connectionTimeout: values.connectionTimeout,
     osAuth: values.osAuth,
     oracleConnectMode: values.oracleConnectMode,
+    oracleIdentifierType: values.oracleIdentifierType,
     db2ConnectMode: values.db2ConnectMode,
     dbAlias: values.dbAlias,
     schema: values.schema,
@@ -765,6 +765,7 @@ function applyPersistedForm(state) {
   advancedInputs.trustServerCertificate.checked = Boolean(state.trustServerCertificate);
   advancedInputs.oracleMode.value =
     state.oracleConnectMode === "tns" ? "tns" : "easyconnect";
+  advancedInputs.oracleId.value = state.oracleIdentifierType === "sid" ? "sid" : "service";
   advancedInputs.osAuth.checked = Boolean(state.osAuth);
   advancedInputs.db2Mode.value =
     state.db2ConnectMode === "dbalias" ? "dbalias" : "hostname";
@@ -871,6 +872,7 @@ function isFormBlank() {
   if (values.sslMode !== "off") return false;
   if (values.sqliteVersion !== "3") return false;
   if (values.oracleConnectMode !== "easyconnect") return false;
+  if (values.oracleIdentifierType !== "service") return false;
   if (values.db2ConnectMode !== "hostname") return false;
   return true;
 }
@@ -905,6 +907,10 @@ function applyFormatChange(format) {
   currentFormat = format;
   if (format !== "odbc") {
     advancedInputs.useDsn.checked = false;
+  }
+  // DB2 OLE DB has no DBALIAS path — fall back to hostname mode.
+  if (format === "oledb" && currentDb === "db2") {
+    advancedInputs.db2Mode.value = "hostname";
   }
   renderDriverPresets();
   updateOutput();
@@ -960,6 +966,7 @@ function resetConnectionForm() {
   advancedInputs.encrypt.checked = false;
   advancedInputs.trustServerCertificate.checked = false;
   advancedInputs.oracleMode.value = "easyconnect";
+  advancedInputs.oracleId.value = "service";
   advancedInputs.osAuth.checked = false;
   advancedInputs.db2Mode.value = "hostname";
   advancedInputs.dbAlias.value = "";
@@ -1113,6 +1120,7 @@ document.getElementById("conn-app").addEventListener("change", (event) => {
     event.target === advancedInputs.osAuth ||
     event.target === advancedInputs.db2Mode ||
     event.target === advancedInputs.oracleMode ||
+    event.target === advancedInputs.oracleId ||
     event.target === advancedInputs.sqliteMemory
   ) {
     updateOutput();

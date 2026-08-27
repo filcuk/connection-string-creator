@@ -21,6 +21,7 @@ function firebirdDbName(values) {
 export function buildFirebird(values, format) {
   const timeout = timeoutPair(values, format);
   const dbName = firebirdDbName(values);
+  const charset = values.charset?.trim() ? { Charset: values.charset.trim() } : {};
 
   if (format === "odbc") {
     return withDsnOrPairs(values, {
@@ -29,6 +30,7 @@ export function buildFirebird(values, format) {
       PWD: values.password,
       DBNAME: dbName,
       DIALECT: "3",
+      ...charset,
       ...timeout,
     });
   }
@@ -40,6 +42,7 @@ export function buildFirebird(values, format) {
     DataSource: values.host,
     Port: values.port,
     Dialect: "3",
+    ...charset,
     ...timeout,
   });
 }

@@ -18,6 +18,7 @@ export function buildAs400(values, format) {
       System: system,
       Uid: values.username,
       Pwd: values.password,
+      ...(collection ? { DefaultLibraries: collection } : {}),
       ...(values.encrypt ? { SSL: "1" } : {}),
       ...timeout,
     });
@@ -38,6 +39,7 @@ export function buildAs400(values, format) {
     DataSource: system,
     UserID: values.username,
     Password: values.password,
+    ...(collection ? { DefaultCollection: collection } : {}),
     DataCompression: "True",
     ...timeout,
   });

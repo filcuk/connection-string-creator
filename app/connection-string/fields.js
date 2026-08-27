@@ -55,7 +55,7 @@ export const FIELD_OVERRIDES = {
   oracle: {
     database: {
       label: "Service name or SID",
-      hint: "Used in the connection descriptor (e.g. ORCL).",
+      hint: "Choose Service name or SID under advanced options.",
       placeholder: "ORCL",
     },
   },

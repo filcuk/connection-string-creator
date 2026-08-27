@@ -12,6 +12,7 @@ export function buildSqlite(values, format) {
     return withDsnOrPairs(values, {
       Driver: formatDriverName(values.driverName),
       Database: dataSource,
+      ...(values.password ? { PWD: values.password } : {}),
       ...timeout,
     });
   }
